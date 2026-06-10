@@ -1,0 +1,41 @@
+{
+  "success": true,
+  "tool": "paste",
+  "input_type": "email",
+  "input_value": "test@example.com",
+  "timestamp": "2026-01-01T00:00:00Z",
+  "data": {
+    "query_email": "test@example.com",
+    "paste_count": 3,
+    "credential_paste_count": 2,
+    "recent_paste_count": 1,
+    "plaintext_passwords_found": 2,
+    "pastes": [
+      {
+        "paste_id": "aB3xY7qR",
+        "url": "https://psbdmp.ws/aB3xY7qR",
+        "date": "2026-05-10",
+        "credential_count": 1,
+        "has_plaintext_password": true,
+        "password_samples": ["Summ****"]
+      },
+      {
+        "paste_id": "mK9pL2nW",
+        "url": "https://psbdmp.ws/mK9pL2nW",
+        "date": "2025-11-03",
+        "credential_count": 1,
+        "has_plaintext_password": true,
+        "password_samples": ["qwer****"]
+      },
+      {
+        "paste_id": "zT4vC8jD",
+        "url": "https://psbdmp.ws/zT4vC8jD",
+        "date": "2024-06-21",
+        "credential_count": 0,
+        "has_plaintext_password": false,
+        "password_samples": []
+      }
+    ]
+  },
+  "error": null
+}

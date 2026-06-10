@@ -1,0 +1,24 @@
+{
+  "success": true,
+  "tool": "phone_lookup",
+  "input_type": "phone",
+  "input_value": "+14155551234",
+  "timestamp": "2026-06-08T00:00:00Z",
+  "data": {
+    "phone": "+14155551234",
+    "valid": true,
+    "carrier": {
+      "name": "AT&T Mobility LLC",
+      "type": "mobile"
+    },
+    "line_type": "mobile",
+    "country_code": "US",
+    "country_name": "United States of America",
+    "location": "San Francisco",
+    "geocode": "San Francisco, CA",
+    "timezone": ["America/Los_Angeles"],
+    "international_format": "+14155551234",
+    "local_format": "(415) 555-1234",
+    "is_voip": false
+  }
+}

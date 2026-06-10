@@ -1,0 +1,142 @@
+{
+  "overall_risk_score": 68,
+  "overall_risk_level": "medium",
+  "identity_summary": "The internet knows you as 'testuser' across 47 platforms including GitHub, Reddit, and Twitter. Your address at 123 Main St and phone number appear on 4 data broker sites. Credentials from 3 breaches (LinkedIn 2012, Adobe 2013, Dropbox 2012) are in circulation, including a SHA1 password hash.",
+  "what_is_known": {
+    "handles_and_usernames": [
+      "testuser (GitHub, Reddit, Twitter, Instagram)"
+    ],
+    "platforms_with_accounts": [
+      "GitHub: github.com/testuser",
+      "Twitter: twitter.com/testuser",
+      "Reddit: reddit.com/u/testuser"
+    ],
+    "physical_data": [
+      "Address: 123 Main St, San Francisco CA (Spokeo, Whitepages)",
+      "Phone: +1415555xxxx (Whitepages)",
+      "Relatives: Jane Doe, John Doe (TruthFinder)"
+    ],
+    "credentials_exposed": [
+      "Password hash (SHA1) from LinkedIn breach, May 2016",
+      "Password hash (MD5) from Adobe breach, October 2013"
+    ],
+    "google_footprint": [
+      "12 Google Maps reviews (restaurants in San Francisco)",
+      "YouTube channel: youtube.com/channel/example"
+    ],
+    "breach_history": [
+      "LinkedIn (2016-05-01) \u2014 Passwords, Email addresses",
+      "Adobe (2013-10-01) \u2014 Email addresses, Password hints",
+      "Dropbox (2012-07-01) \u2014 Email addresses, Passwords"
+    ]
+  },
+  "top_risks": [
+    "Password hash from LinkedIn 2016 breach is in active circulation \u2014 change any reused passwords immediately",
+    "Physical address and phone number appear on 4 broker sites \u2014 accessible to anyone",
+    "Username 'testuser' links accounts across 47 platforms enabling full identity correlation",
+    "Google Maps reviews reveal frequent locations including likely home neighborhood",
+    "Relatives' names and associations are publicly listed on broker sites"
+  ],
+  "remediation": {
+    "identity_fraud_prevention": [
+      "Get an IRS Identity Protection PIN at irs.gov/identity-theft-fraud-scams/get-an-identity-protection-pin \u2014 prevents fraudulent tax filings in your name. Free, renews annually.",
+      "Lock your SSN in E-Verify at myeverify.uscis.gov \u2014 prevents your SSN from being used in employment eligibility checks.",
+      "Enroll in USPS Informed Delivery at informeddelivery.usps.com \u2014 get email previews of your mail to detect redirection fraud."
+    ],
+    "credit_freeze": [
+      "Freeze your credit at all bureaus: Equifax (equifax.com/freeze), Experian (experian.com/freeze), TransUnion (transunion.com/freeze), Innovis (innovis.com/freeze). Also freeze: ChexSystems (chexsystems.com, protects bank accounts), LexisNexis Risk Solutions (optout.lexisnexis.com, used in background checks and insurance)."
+    ],
+    "sim_swap_hardening": [
+      "Contact your mobile carrier (AT&T, Verizon, T-Mobile) and add a verbal passcode or port-freeze to prevent SIM-swap attacks.",
+      "Remove your phone number from social media account recovery on Facebook, Twitter/X, and Google \u2014 replace with an authenticator app."
+    ],
+    "change_passwords": [
+      "Change passwords for all breached accounts: LinkedIn (2016), Adobe (2013), Dropbox (2012). Use a unique password for each \u2014 consider 1Password or Bitwarden."
+    ],
+    "enable_2fa": [
+      "Enable 2FA on: GitHub, Twitter, Reddit \u2014 use an authenticator app (Google Authenticator, Authy) rather than SMS."
+    ],
+    "account_hygiene": [
+      "Revoke unused OAuth app access on: Google (myaccount.google.com/permissions), Facebook, Twitter/X \u2014 remove any apps you no longer use.",
+      "Audit active sessions: check Google (myaccount.google.com/device-activity), Apple ID, and Microsoft for unrecognized devices.",
+      "Delete unused accounts \u2014 use justdeleteme.xyz to find step-by-step deletion instructions."
+    ],
+    "account_reviews": [
+      "Review privacy/visibility settings on: GitHub, Twitter, Reddit, Instagram \u2014 remove phone number from public view, set profile indexing to off where possible."
+    ],
+    "ccpa_removals": [
+      "CCPA deletion request to LinkedIn at https://www.linkedin.com/help/linkedin/answer/a1340440",
+      "CCPA deletion request to Adobe at https://www.adobe.com/privacy/privacy-contact.html or privacy@adobe.com"
+    ],
+    "gdpr_removals": [],
+    "broker_optouts": [
+      "Use EasyOptOuts (easyoptouts.com, ~$20/year) to automate removal from Spokeo, Whitepages, BeenVerified, and 100+ brokers \u2014 profiles re-populate every 90 days so an ongoing subscription is recommended.",
+      "Manual opt-out: Spokeo at spokeo.com/optout \u2014 has your address and phone",
+      "Manual opt-out: Whitepages at whitepages.com/suppression-requests"
+    ],
+    "monitoring": [
+      "Sign up for free breach monitoring at haveibeenpwned.com with your email address to get notified of future breaches immediately.",
+      "Set Google Alerts for your full name, phone number, and home address at google.com/alerts.",
+      "Re-run data broker opt-outs every 90 days \u2014 profiles re-populate from public records.",
+      "Review active OAuth app permissions quarterly."
+    ],
+    "no_action_available": [
+      "LinkedIn (2016), Adobe (2013), Dropbox (2012) \u2014 breach archives held by third parties, no removal possible. Monitor with HIBP for future breaches."
+    ]
+  },
+  "findings_context": [
+    {
+      "name": "LinkedIn",
+      "what_it_is": "Professional networking platform used for career and business connections.",
+      "why_it_matters": "Your 2016 breach data (email + password hash) is in active circulation; your current profile is also publicly indexed.",
+      "removable": true,
+      "removal_mechanism": "ccpa",
+      "how_to_remove": null,
+      "account_is_active": true,
+      "service_is_live": true
+    },
+    {
+      "name": "Adobe",
+      "what_it_is": "Creative software company whose 2013 breach exposed 153M accounts.",
+      "why_it_matters": "Your email and MD5-encrypted password from the 2013 breach are searchable in breach databases.",
+      "removable": true,
+      "removal_mechanism": "ccpa",
+      "how_to_remove": null,
+      "account_is_active": true,
+      "service_is_live": true
+    },
+    {
+      "name": "Spokeo",
+      "what_it_is": "People-search data broker aggregating public records and social media data.",
+      "why_it_matters": "Your home address, phone number, and relatives are listed and accessible to anyone.",
+      "removable": true,
+      "removal_mechanism": "optout",
+      "how_to_remove": null,
+      "account_is_active": false,
+      "service_is_live": true
+    },
+    {
+      "name": "Whitepages",
+      "what_it_is": "People-search data broker with address, phone, and background check data.",
+      "why_it_matters": "Your address and phone appear in search results, enabling stalking or targeted phishing.",
+      "removable": true,
+      "removal_mechanism": "optout",
+      "how_to_remove": null,
+      "account_is_active": false,
+      "service_is_live": true
+    },
+    {
+      "name": "Dropbox",
+      "what_it_is": "Cloud storage service that suffered a 2012 breach exposing 68M accounts.",
+      "why_it_matters": "Breach archive data is in third-party databases \u2014 cannot be removed.",
+      "removable": false,
+      "removal_mechanism": "none",
+      "how_to_remove": null,
+      "account_is_active": false,
+      "service_is_live": false
+    }
+  ],
+  "breach_severity": "high",
+  "broker_exposure_severity": "medium",
+  "account_exposure_severity": "medium"
+}

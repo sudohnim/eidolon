@@ -1,0 +1,9 @@
+{
+  "success": false,
+  "tool": "hibp",
+  "input_type": "email",
+  "input_value": "test@example.com",
+  "timestamp": "2026-06-06T10:00:00",
+  "error": "HIBP API returned 401 — check HIBP_API_KEY in .env",
+  "data": {}
+}

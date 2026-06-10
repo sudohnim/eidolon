@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "tool": "hibp",
+  "input_type": "email",
+  "input_value": "clean@example.com",
+  "timestamp": "2026-06-06T10:00:00",
+  "error": null,
+  "data": {
+    "query_value": "clean@example.com",
+    "breach_count": 0,
+    "paste_count": 0,
+    "breaches": []
+  }
+}

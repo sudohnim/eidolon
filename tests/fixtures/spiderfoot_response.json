@@ -1,0 +1,67 @@
+{
+  "success": true,
+  "tool": "spiderfoot",
+  "input_type": "email",
+  "input_value": "test@example.com",
+  "timestamp": "2026-06-06T10:00:00",
+  "error": null,
+  "data": {
+    "scan_id": "abc123def456",
+    "target": "test@example.com",
+    "status": "FINISHED",
+    "element_count": 5,
+    "duration_seconds": 120,
+    "elements": [
+      {
+        "fp": 0,
+        "confidence": 100,
+        "risk": 0,
+        "source": "test@example.com",
+        "date_found": "2026-06-06 10:01:00",
+        "module": "sfp_gravatar",
+        "data": "https://www.gravatar.com/avatar/abc123",
+        "type": "INTERNET_NAME"
+      },
+      {
+        "fp": 0,
+        "confidence": 80,
+        "risk": 1,
+        "source": "test@example.com",
+        "date_found": "2026-06-06 10:01:15",
+        "module": "sfp_pastebin",
+        "data": "https://pastebin.com/xYz789 - email found in paste dated 2024-03-15",
+        "type": "LEAKSITE_CONTENT"
+      },
+      {
+        "fp": 0,
+        "confidence": 90,
+        "risk": 0,
+        "source": "test@example.com",
+        "date_found": "2026-06-06 10:01:30",
+        "module": "sfp_social",
+        "data": "Twitter/X: @testuser (linked via email)",
+        "type": "SOCIAL_MEDIA"
+      },
+      {
+        "fp": 0,
+        "confidence": 70,
+        "risk": 0,
+        "source": "test@example.com",
+        "date_found": "2026-06-06 10:02:00",
+        "module": "sfp_pgp",
+        "data": "PGP key found: 0xABCDEF1234567890",
+        "type": "PGP_KEY"
+      },
+      {
+        "fp": 0,
+        "confidence": 95,
+        "risk": 2,
+        "source": "test@example.com",
+        "date_found": "2026-06-06 10:02:30",
+        "module": "sfp_emailrep",
+        "data": "Email reputation: suspicious. Seen in 4 breach databases. Deliverable: true.",
+        "type": "RAW_RIR_DATA"
+      }
+    ]
+  }
+}
