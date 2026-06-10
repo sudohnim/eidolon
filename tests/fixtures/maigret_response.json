@@ -1,19 +1,35 @@
 {
-  "success": true,
-  "tool": "maigret",
-  "input_type": "name",
-  "input_value": "testuser",
-  "timestamp": "2026-01-01T00:00:00Z",
-  "data": {
-    "username": "testuser",
-    "platforms_checked": 3155,
-    "profiles_found": [
-      {"platform": "GitHub", "url": "https://github.com/testuser", "status": "CLAIMED", "ids_found": [], "links": []},
-      {"platform": "Twitter", "url": "https://twitter.com/testuser", "status": "CLAIMED", "ids_found": [], "links": []},
-      {"platform": "Reddit", "url": "https://www.reddit.com/user/testuser", "status": "CLAIMED", "ids_found": [], "links": []},
-      {"platform": "Instagram", "url": "https://www.instagram.com/testuser", "status": "CLAIMED", "ids_found": [], "links": []}
-    ],
-    "found_count": 4
-  },
-  "error": null
+  "username": "testuser",
+  "platforms_checked": 3155,
+  "profiles_found": [
+    {
+      "platform": "GitHub",
+      "url": "https://github.com/testuser",
+      "status": "CLAIMED",
+      "ids_found": [],
+      "links": []
+    },
+    {
+      "platform": "Twitter",
+      "url": "https://twitter.com/testuser",
+      "status": "CLAIMED",
+      "ids_found": [],
+      "links": []
+    },
+    {
+      "platform": "Reddit",
+      "url": "https://www.reddit.com/user/testuser",
+      "status": "CLAIMED",
+      "ids_found": [],
+      "links": []
+    },
+    {
+      "platform": "Instagram",
+      "url": "https://www.instagram.com/testuser",
+      "status": "CLAIMED",
+      "ids_found": [],
+      "links": []
+    }
+  ],
+  "found_count": 4
 }

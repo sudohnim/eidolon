@@ -1,13 +1,11 @@
 import asyncio
-import json
 import logging
-from datetime import datetime, timezone
 from pathlib import Path
 
+import structlog
 from pydantic import BaseModel
 
-from eidolon import config
-from eidolon.core.models import ToolResult
+from eidolon.tools.base import Tool
 
 
 class MaigretInput(BaseModel):
@@ -25,60 +23,31 @@ class MaigretProfile(BaseModel):
 
 
 class MaigretOutput(BaseModel):
-    username: str
-    platforms_checked: int
-    profiles_found: list[MaigretProfile]
-    found_count: int
+    username: str = ""
+    platforms_checked: int = 0
+    profiles_found: list[MaigretProfile] = []
+    found_count: int = 0
 
 
-logger = logging.getLogger(__name__)
+class Maigret(Tool[MaigretInput, MaigretOutput]):
+    name = "maigret"
+    input_type = "name"
+    input_schema = MaigretInput
+    output_schema = MaigretOutput
 
-FIXTURE_PATH = (
-    Path(__file__).parent.parent.parent / "tests" / "fixtures" / "maigret_response.json"
-)
+    def _input_value(self, inp: MaigretInput) -> str:
+        return inp.username
 
-
-def _load_fixture() -> ToolResult:
-    raw = json.loads(FIXTURE_PATH.read_text())
-    return ToolResult(**raw)
-
-
-def run(inp: MaigretInput) -> ToolResult:
-    logger.info("maigret: searching username=%s", inp.username)
-
-    if config.is_test_mode():
-        return _load_fixture()
-
-    try:
+    def _run(
+        self, inp: MaigretInput, log: structlog.stdlib.BoundLogger
+    ) -> MaigretOutput:
         profiles, checked = asyncio.run(_run_async(inp))
-        output = MaigretOutput(
+        log.info("ok", checked=checked, found=len(profiles))
+        return MaigretOutput(
             username=inp.username,
             platforms_checked=checked,
             profiles_found=profiles,
             found_count=len(profiles),
-        )
-        logger.info(
-            "maigret: checked %d platforms, found %d profiles", checked, len(profiles)
-        )
-        return ToolResult(
-            success=True,
-            tool="maigret",
-            input_type="name",
-            input_value=inp.username,
-            timestamp=datetime.now(timezone.utc),
-            data=output.model_dump(),
-        )
-
-    except Exception as exc:
-        logger.error("maigret: FAILED — %s", exc, exc_info=True)
-        return ToolResult(
-            success=False,
-            tool="maigret",
-            input_type="name",
-            input_value=inp.username,
-            timestamp=datetime.now(timezone.utc),
-            data={},
-            error=f"maigret error: {exc}",
         )
 
 

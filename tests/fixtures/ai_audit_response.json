@@ -1,74 +1,71 @@
 {
-  "success": true,
-  "tool": "ai_audit",
-  "input_type": "email",
-  "input_value": "test@example.com",
-  "timestamp": "2026-06-06T10:00:00",
-  "error": null,
-  "data": {
-    "platforms_checked": ["claude", "chatgpt", "gemini", "grok"],
-    "high_risk_count": 2,
-    "overall_risk": "high",
-    "action_items": [
-      "CRITICAL: Disable Grok training — cannot be disabled, consider deleting account",
-      "CRITICAL: Gemini has no training opt-out — disable Activity Control and accept history loss, or switch to Vertex AI",
-      "ACTION: Opt out of Claude training at claude.ai/settings/privacy",
-      "ACTION: Opt out of ChatGPT training at chat.openai.com/settings/data-controls",
-      "INFO: Claude API usage is already excluded from training"
-    ],
-    "platforms_found": [
-      {
-        "platform_id": "claude",
-        "display_name": "Anthropic Claude (Consumer)",
-        "trains_consumer_by_default": true,
-        "opt_out_available": true,
-        "consumer_retention_opted_in": "5 years",
-        "consumer_retention_opted_out": "30 days",
-        "api_excluded_from_training": true,
-        "jurisdiction": "US",
-        "risk_level": "medium",
-        "opt_out_url": "https://claude.ai/settings/privacy",
-        "notes": "Changed policy Aug 2025. Consumer Free/Pro/Max default to training."
-      },
-      {
-        "platform_id": "chatgpt",
-        "display_name": "OpenAI ChatGPT (Consumer)",
-        "trains_consumer_by_default": true,
-        "opt_out_available": true,
-        "consumer_retention_opted_in": "indefinite",
-        "consumer_retention_opted_out": "30 days",
-        "api_excluded_from_training": true,
-        "jurisdiction": "US",
-        "risk_level": "medium",
-        "opt_out_url": "https://chat.openai.com/settings/data-controls",
-        "notes": "API excluded by default."
-      },
-      {
-        "platform_id": "gemini",
-        "display_name": "Google Gemini (Consumer)",
-        "trains_consumer_by_default": true,
-        "opt_out_available": false,
-        "consumer_retention_opted_in": "indefinite",
-        "consumer_retention_opted_out": "N/A - no opt out",
-        "api_excluded_from_training": true,
-        "jurisdiction": "US",
-        "risk_level": "high",
-        "opt_out_url": "https://myaccount.google.com/data-and-privacy",
-        "notes": "No formal training opt-out available."
-      },
-      {
-        "platform_id": "grok",
-        "display_name": "xAI Grok",
-        "trains_consumer_by_default": true,
-        "opt_out_available": false,
-        "consumer_retention_opted_in": "indefinite",
-        "consumer_retention_opted_out": "N/A",
-        "api_excluded_from_training": false,
-        "jurisdiction": "US",
-        "risk_level": "high",
-        "opt_out_url": "https://x.com/settings/privacy_and_safety",
-        "notes": "Cannot disable training. Linked to X social graph."
-      }
-    ]
-  }
+  "platforms_checked": [
+    "claude",
+    "chatgpt",
+    "gemini",
+    "grok"
+  ],
+  "high_risk_count": 2,
+  "overall_risk": "high",
+  "action_items": [
+    "CRITICAL: Disable Grok training \u2014 cannot be disabled, consider deleting account",
+    "CRITICAL: Gemini has no training opt-out \u2014 disable Activity Control and accept history loss, or switch to Vertex AI",
+    "ACTION: Opt out of Claude training at claude.ai/settings/privacy",
+    "ACTION: Opt out of ChatGPT training at chat.openai.com/settings/data-controls",
+    "INFO: Claude API usage is already excluded from training"
+  ],
+  "platforms_found": [
+    {
+      "platform_id": "claude",
+      "display_name": "Anthropic Claude (Consumer)",
+      "trains_consumer_by_default": true,
+      "opt_out_available": true,
+      "consumer_retention_opted_in": "5 years",
+      "consumer_retention_opted_out": "30 days",
+      "api_excluded_from_training": true,
+      "jurisdiction": "US",
+      "risk_level": "medium",
+      "opt_out_url": "https://claude.ai/settings/privacy",
+      "notes": "Changed policy Aug 2025. Consumer Free/Pro/Max default to training."
+    },
+    {
+      "platform_id": "chatgpt",
+      "display_name": "OpenAI ChatGPT (Consumer)",
+      "trains_consumer_by_default": true,
+      "opt_out_available": true,
+      "consumer_retention_opted_in": "indefinite",
+      "consumer_retention_opted_out": "30 days",
+      "api_excluded_from_training": true,
+      "jurisdiction": "US",
+      "risk_level": "medium",
+      "opt_out_url": "https://chat.openai.com/settings/data-controls",
+      "notes": "API excluded by default."
+    },
+    {
+      "platform_id": "gemini",
+      "display_name": "Google Gemini (Consumer)",
+      "trains_consumer_by_default": true,
+      "opt_out_available": false,
+      "consumer_retention_opted_in": "indefinite",
+      "consumer_retention_opted_out": "N/A - no opt out",
+      "api_excluded_from_training": true,
+      "jurisdiction": "US",
+      "risk_level": "high",
+      "opt_out_url": "https://myaccount.google.com/data-and-privacy",
+      "notes": "No formal training opt-out available."
+    },
+    {
+      "platform_id": "grok",
+      "display_name": "xAI Grok",
+      "trains_consumer_by_default": true,
+      "opt_out_available": false,
+      "consumer_retention_opted_in": "indefinite",
+      "consumer_retention_opted_out": "N/A",
+      "api_excluded_from_training": false,
+      "jurisdiction": "US",
+      "risk_level": "high",
+      "opt_out_url": "https://x.com/settings/privacy_and_safety",
+      "notes": "Cannot disable training. Linked to X social graph."
+    }
+  ]
 }

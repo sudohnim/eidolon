@@ -17,15 +17,18 @@ Requires: WHOXY_API_KEY in .env
 Pricing: free tier 100 queries/month; paid from $3/month for 500/month.
 """
 
-import logging
 from datetime import datetime, timezone
-from pathlib import Path
 
 import requests
+import structlog
 from pydantic import BaseModel
 
 from eidolon import config
-from eidolon.core.models import ToolResult
+from eidolon.tools.base import Tool
+
+
+class WhoxyInput(BaseModel):
+    email: str
 
 
 class WhoxyDomain(BaseModel):
@@ -54,41 +57,23 @@ class WhoxyOutput(BaseModel):
     expired_domain_count: int = 0
 
 
-logger = logging.getLogger(__name__)
-
-FIXTURE_PATH = (
-    Path(__file__).parent.parent.parent / "tests" / "fixtures" / "whoxy_response.json"
-)
-
 WHOXY_URL = "https://api.whoxy.com/"
 
 
-def run(email: str) -> ToolResult:
-    logger.info("whoxy: reverse WHOIS for email=%s", email)
+class Whoxy(Tool[WhoxyInput, WhoxyOutput]):
+    name = "whoxy"
+    input_schema = WhoxyInput
+    output_schema = WhoxyOutput
 
-    if config.is_test_mode():
-        import json
+    def available(self) -> bool:
+        return bool(config.get("WHOXY_API_KEY"))
 
-        raw = json.loads(FIXTURE_PATH.read_text())
-        return ToolResult(**raw)
+    def _input_value(self, inp: WhoxyInput) -> str:
+        return inp.email
 
-    api_key = config.get("WHOXY_API_KEY")
-    if not api_key:
-        logger.info(
-            "whoxy: WHOXY_API_KEY not set — skipping "
-            "(register at whoxy.com, free tier: 100 queries/month)"
-        )
-        output = WhoxyOutput(query_email=email)
-        return ToolResult(
-            success=True,
-            tool="whoxy",
-            input_type="email",
-            input_value=email,
-            timestamp=datetime.now(timezone.utc),
-            data=output.model_dump(),
-        )
-
-    try:
+    def _run(self, inp: WhoxyInput, log: structlog.stdlib.BoundLogger) -> WhoxyOutput:
+        email = inp.email
+        api_key = config.get("WHOXY_API_KEY")
         all_domains: list[WhoxyDomain] = []
         page = 1
 
@@ -108,10 +93,10 @@ def run(email: str) -> ToolResult:
             data = resp.json()
 
             if data.get("status") != 1:
-                logger.warning(
-                    "whoxy: API returned status=%s — %s",
-                    data.get("status"),
-                    data.get("status_reason", "unknown error"),
+                log.warning(
+                    "whoxy api error",
+                    status=data.get("status"),
+                    reason=data.get("status_reason", "unknown error"),
                 )
                 break
 
@@ -176,35 +161,15 @@ def run(email: str) -> ToolResult:
             expired_domain_count=expired_count,
         )
 
-        logger.info(
-            "whoxy: OK — total=%d active=%d expired=%d companies=%d addresses=%d",
-            output.total_results,
-            output.active_domain_count,
-            output.expired_domain_count,
-            len(output.unique_company_names),
-            len(output.unique_addresses),
+        log.info(
+            "ok",
+            total=output.total_results,
+            active=output.active_domain_count,
+            expired=output.expired_domain_count,
+            companies=len(output.unique_company_names),
+            addresses=len(output.unique_addresses),
         )
-
-        return ToolResult(
-            success=True,
-            tool="whoxy",
-            input_type="email",
-            input_value=email,
-            timestamp=datetime.now(timezone.utc),
-            data=output.model_dump(),
-        )
-
-    except Exception as exc:
-        logger.error("whoxy: FAILED — %s", exc, exc_info=True)
-        return ToolResult(
-            success=False,
-            tool="whoxy",
-            input_type="email",
-            input_value=email,
-            timestamp=datetime.now(timezone.utc),
-            data={},
-            error=f"whoxy error: {exc}",
-        )
+        return output
 
 
 def _format_address(contact: dict) -> str:

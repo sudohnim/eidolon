@@ -1,15 +1,14 @@
-import json
 import logging
 import time
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Literal, cast
 
 import requests
+import structlog
 from pydantic import BaseModel, field_validator
 
 from eidolon import config
-from eidolon.core.models import ToolResult
+from eidolon.core.models import InputType
+from eidolon.tools.base import Tool
 
 
 class SpiderfootInput(BaseModel):
@@ -48,22 +47,15 @@ class SpiderfootElement(BaseModel):
 
 
 class SpiderfootOutput(BaseModel):
-    scan_id: str
-    target: str
-    status: Literal["FINISHED", "FAILED", "RUNNING", "ABORTED", "PARTIAL"]
-    element_count: int
-    elements: list[SpiderfootElement]
-    duration_seconds: int
+    scan_id: str = ""
+    target: str = ""
+    status: Literal["FINISHED", "FAILED", "RUNNING", "ABORTED", "PARTIAL"] = "FAILED"
+    element_count: int = 0
+    elements: list[SpiderfootElement] = []
+    duration_seconds: int = 0
 
 
 logger = logging.getLogger(__name__)
-
-FIXTURE_PATH = (
-    Path(__file__).parent.parent.parent
-    / "tests"
-    / "fixtures"
-    / "spiderfoot_response.json"
-)
 
 INPUT_TYPE_MAP = {
     "email": "emailaddr",
@@ -80,30 +72,38 @@ POLL_INTERVAL = 10
 POLL_TIMEOUT = int(config.get("SPIDERFOOT_TIMEOUT") or 600)
 
 
-def _load_fixture() -> ToolResult:
-    raw = json.loads(FIXTURE_PATH.read_text())
-    return ToolResult(**raw)
+class Spiderfoot(Tool[SpiderfootInput, SpiderfootOutput]):
+    name = "spiderfoot"
+    input_schema = SpiderfootInput
+    output_schema = SpiderfootOutput
 
+    def _input_type(self, inp: SpiderfootInput) -> InputType:
+        return cast(
+            InputType,
+            next(
+                (k for k, v in INPUT_TYPE_MAP.items() if v == inp.target_type),
+                "email",
+            ),
+        )
 
-def run(inp: SpiderfootInput) -> ToolResult:
-    logger.info("spiderfoot: scanning target_type=%s", inp.target_type)
+    def _input_value(self, inp: SpiderfootInput) -> str:
+        return inp.target
 
-    if config.is_test_mode():
-        return _load_fixture()
+    def _run(
+        self, inp: SpiderfootInput, log: structlog.stdlib.BoundLogger
+    ) -> SpiderfootOutput:
+        base = config.get("SPIDERFOOT_HOST")
+        start_time = time.time()
 
-    base = config.get("SPIDERFOOT_HOST")
-    start_time = time.time()
+        # SpiderFoot auto-detects the target type from the value. Human and
+        # company names are only recognized when wrapped in double quotes —
+        # without them SpiderFoot returns "Unrecognised target type." for a name.
+        scantarget = inp.target
+        if inp.target_type in ("human_name", "company_name") and not (
+            scantarget.startswith('"') and scantarget.endswith('"')
+        ):
+            scantarget = f'"{scantarget}"'
 
-    # SpiderFoot auto-detects the target type from the value. Human and company
-    # names are only recognized when wrapped in double quotes — without them
-    # SpiderFoot returns "Unrecognised target type." for a bare name.
-    scantarget = inp.target
-    if inp.target_type in ("human_name", "company_name") and not (
-        scantarget.startswith('"') and scantarget.endswith('"')
-    ):
-        scantarget = f'"{scantarget}"'
-
-    try:
         scan_resp = requests.post(
             f"{base}/startscan",
             headers={"Accept": "application/json"},
@@ -202,41 +202,11 @@ def run(inp: SpiderfootInput) -> ToolResult:
         _sf_status = cast(
             Literal["FINISHED", "FAILED", "RUNNING", "ABORTED", "PARTIAL"], status
         )
-        output = SpiderfootOutput(
+        return SpiderfootOutput(
             scan_id=scan_id,
             target=inp.target,
             status=_sf_status,
             element_count=len(elements),
             elements=elements,
             duration_seconds=int(time.time() - start_time),
-        )
-        _input_type = cast(
-            Literal["email", "phone", "name", "org"],
-            next(k for k, v in INPUT_TYPE_MAP.items() if v == inp.target_type),
-        )
-        return ToolResult(
-            success=True,
-            tool="spiderfoot",
-            input_type=_input_type,
-            input_value=inp.target,
-            timestamp=datetime.now(timezone.utc),
-            data=output.model_dump(),
-        )
-
-    except Exception as exc:
-        logger.error("spiderfoot: FAILED — %s", exc, exc_info=True)
-        _err_input_type = cast(
-            Literal["email", "phone", "name", "org"],
-            next(
-                (k for k, v in INPUT_TYPE_MAP.items() if v == inp.target_type), "email"
-            ),
-        )
-        return ToolResult(
-            success=False,
-            tool="spiderfoot",
-            input_type=_err_input_type,
-            input_value=inp.target,
-            timestamp=datetime.now(timezone.utc),
-            data={},
-            error=f"SpiderFoot error: {exc}",
         )

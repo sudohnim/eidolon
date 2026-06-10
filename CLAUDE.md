@@ -327,12 +327,34 @@ Report sections:
 
 ## Tool Contract
 
-Every tool must:
-- Accept a typed Pydantic input model (or plain args for simple tools like `public_records.run(name)`)
-- Return `ToolResult` envelope (never raw dicts, never raise)
-- Handle errors by returning `ToolResult(success=False, error=..., data={})`
-- Log what it queried (input value), **never** log the results (output data)
-- In `TEST_MODE=true`, return fixture from `tests/fixtures/` without hitting any API
+Every tool is a `Tool` subclass (`eidolon/tools/base.py`) — a typed
+pydantic-in / pydantic-out unit. One class per vendor.
+
+```python
+class Hibp(Tool[HibpInput, HibpOutput]):
+    name = "hibp"                 # also the fixture stem
+    input_schema  = HibpInput
+    output_schema = HibpOutput
+    def available(self) -> bool: ...      # optional; gate on required keys
+    def _run(self, inp, log) -> HibpOutput: ...   # the actual work
+```
+
+- **`run(inp) -> output_schema`** is the clean public contract: `Hibp().run(inp)`.
+  The base handles TEST_MODE fixtures (validates `tests/fixtures/<name>_response.json`
+  as the output schema) and short-circuits to an empty output when `available()`
+  is False. Output schemas must be **default-constructible** (all fields defaulted).
+- `_run` does the work and **returns the output model** (raise on failure — never
+  return a half-built result). It receives a bound structlog `log`.
+- **`run_to_result(tool, inp) -> ToolResult`** is the single boundary adapter the
+  nodes use — it wraps the typed output in the pipeline's `ToolResult` envelope
+  (success/error/metadata) and never raises.
+- **Multi-vendor sources** are split one-class-per-vendor with a thin aggregator
+  that the node calls: `broker_scan.scan()` (apify/fastpeoplesearch/truepeoplesearch),
+  `public_records.lookup()` (courtlistener/opencorporates), `phone.lookup()`
+  (libphonenumber/numverify). The combine logic lives in the aggregator.
+- Log what you queried; **never** log results. Run context (run_id, scan_type,
+  redacted target) is bound at intake and appears on every line.
+- Common paths + fixture/data loading live in `eidolon/utils.py`.
 
 ---
 
@@ -342,17 +364,16 @@ Every tool must:
 TEST_MODE=true uv run pytest -x -q
 ```
 
-`TEST_MODE=true` makes all tools return fixtures. Full pipeline must pass in TEST_MODE.
-Currently: **115 tests**.
+`TEST_MODE=true` makes all tools return fixtures (validated as the output schema).
+Full pipeline must pass in TEST_MODE. Currently: **120 tests**.
 
 Build order (follow strictly for new tools):
-1. Fixture (`tests/fixtures/<tool>_response.json`)
-2. Pydantic model (`models/<tool>.py`)
-3. Tool wrapper with TEST_MODE (`tools/<tool>.py`)
-4. Unit tests — all pass before proceeding
-5. Wire into `agent/nodes.py`: node function → wave → digest → report row
-6. Integration test (full pipeline in TEST_MODE)
-7. Real endpoints only after everything is green
+1. Fixture (`tests/fixtures/<tool>_response.json`) — the **output-schema payload**
+2. `Tool` subclass in `eidolon/tools/<tool>.py` — colocated input/output schemas + `_run`
+3. Unit tests (`run_to_result(Tool(), inp)`) — all pass before proceeding
+4. Wire into `eidolon/agent/nodes.py`: node uses `run_to_result(...)` → wave → digest → report row
+5. Integration test (full pipeline in TEST_MODE)
+6. Real endpoints only after everything is green
 
 ---
 
@@ -393,73 +414,62 @@ so each clone enables it via `bin/setup.sh` (or the `git config` line above).
 
 ## Project Structure
 
+Everything lives under the `eidolon/` package. Run as `python -m eidolon.main`.
+
 ```
-osint-agent/
+osint-agent/                      # repo root
 ├── CLAUDE.md
 ├── .env                          # gitignored
-├── .env.example
-├── .gitignore
-├── .dockerignore
-├── Dockerfile
+├── Dockerfile                    # ENTRYPOINT: python -m eidolon.main
 ├── docker-compose.yml
-├── pyproject.toml
-├── main.py
-├── config.py
+├── pyproject.toml                # packages = ["eidolon"]
 ├── bin/
-│   ├── run.sh                    # pre-flight + scan launcher
-│   └── check.sh                  # environment verification
-├── data/
-│   ├── ai_policies.json
-│   └── privacy_urls.json         # verified deletion URLs for enrich_findings_context
-├── models/
-│   ├── shared.py                 # ToolResult, PipelineState, InputClassification, AnalysisResult
-│   ├── hibp.py
-│   ├── dehashed.py
-│   ├── whoxy.py
-│   ├── spiderfoot.py
-│   ├── broker_scan.py
-│   ├── ai_audit.py
-│   ├── holehe.py
-│   ├── blackbird.py
-│   ├── maigret.py
-│   ├── sherlock.py               # legacy alias — used by maigret output
-│   ├── ghunt.py
-│   ├── phone.py
-│   ├── public_records.py
-│   └── shodan.py
-├── tools/
-│   ├── hibp.py
-│   ├── dehashed.py
-│   ├── whoxy.py
-│   ├── spiderfoot.py
-│   ├── broker_scan.py
-│   ├── ai_audit.py
-│   ├── holehe.py
-│   ├── blackbird.py
-│   ├── maigret.py
-│   ├── ghunt.py
-│   ├── phone.py
-│   ├── public_records.py
-│   ├── shodan.py
-│   └── privacy_url_lookup.py
-├── agent/
-│   ├── graph.py
-│   ├── nodes.py                  # all node functions + _build_analysis_digest()
-│   ├── prompts.py                # ANALYSIS_PROMPT + CORRELATION_PROMPT
-│   └── report.py                 # PDF/Markdown report writer
+│   ├── run.sh / check.sh / lint.sh / setup.sh / removal.py
+├── .githooks/pre-commit          # lint gate on staged files
 ├── tests/
-│   ├── fixtures/                 # one JSON per tool (TEST_MODE returns these)
+│   ├── fixtures/                 # one JSON per tool — the OUTPUT-SCHEMA payload
 │   ├── test_tools.py
 │   ├── test_pipeline.py
-│   └── test_routing.py
-└── output/                       # gitignored, bind-mounted in Docker
+│   ├── test_routing.py
+│   └── test_analysis_postprocess.py
+├── output/                       # gitignored, bind-mounted in Docker
+└── eidolon/                      # the package
+    ├── __init__.py
+    ├── main.py                   # CLI entrypoint
+    ├── config.py
+    ├── utils.py                  # DATA_DIR / FIXTURES_DIR, load_fixture/load_data, dedupe
+    ├── core/
+    │   ├── models.py             # ToolResult, PipelineState, InputClassification, AnalysisResult
+    │   └── logging.py            # structlog config + redact() + bind_run_context()
+    ├── data/                     # ai_policies.json, privacy_urls.json, bazzell_brokers.json
+    ├── tools/
+    │   ├── base.py               # Tool[TIn, TOut] base class + run_to_result() adapter
+    │   ├── hibp.py  dehashed.py  whoxy.py  paste.py  stealer.py
+    │   ├── holehe.py  blackbird.py  ghunt.py  maigret.py
+    │   ├── shodan.py  spiderfoot.py  ai_audit.py
+    │   ├── privacy_url_lookup.py # static helper (not a Tool)
+    │   ├── broker_scan.py        # aggregator: scan() + Bazzell/score helpers
+    │   │   apify.py  fastpeoplesearch.py  truepeoplesearch.py   # broker vendors
+    │   ├── public_records.py     # aggregator: lookup()
+    │   │   courtlistener.py  opencorporates.py                  # public-record vendors
+    │   └── phone.py              # aggregator: lookup()
+    │       libphonenumber.py  numverify.py                      # phone vendors
+    └── agent/
+        ├── graph.py
+        ├── nodes.py              # node functions + _build_analysis_digest() + _postprocess_analysis()
+        ├── prompts.py            # ANALYSIS_PROMPT + CORRELATION_PROMPT
+        └── report.py             # PDF/Markdown report writer
 ```
+
+Each tool colocates its input/output pydantic schemas with the `Tool` subclass
+(no separate `models/` tree).
 
 ---
 
 ## Known Issues / Lessons Learned
 
-- **Google CSE removed** — API closed to new customers (early 2026). All broker scanning is Apify only.
+- **Tool architecture** — every tool is a `Tool[In, Out]` subclass (`eidolon/tools/base.py`): `run(inp)` returns the validated output schema, `run_to_result()` wraps it in a `ToolResult` at the node boundary. Multi-vendor sources are split one-class-per-vendor (broker_scan→apify/fastpeoplesearch/truepeoplesearch, public_records→courtlistener/opencorporates, phone→libphonenumber/numverify) with a thin aggregator the node calls. See **Tool Contract** above.
+- **Google CSE removed** — API closed to new customers (early 2026). Broker scanning is Apify + FastPeopleSearch + TruePeopleSearch (scraped via Scrapfly).
 - **Exodus removed** — app-level tracker data (same result for every Instagram user). Not person-specific. Replaced by Whoxy/DeHashed for physical data coverage.
 - **SpiderFoot healthcheck** — the spiderfoot image has no `curl`. Use `python3 urllib` in the healthcheck test.
 - **Ollama zombie processes** — `init: true` required in docker-compose to reap subprocesses spawned during inference.

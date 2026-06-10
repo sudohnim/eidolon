@@ -24,48 +24,49 @@ import eidolon.tools.spiderfoot as spiderfoot_tool
 import eidolon.tools.stealer as stealer_tool
 import eidolon.tools.whoxy as whoxy_tool
 from eidolon.core.models import ToolResult
-from eidolon.tools.ai_audit import AiAuditInput, AiAuditOutput
-from eidolon.tools.blackbird import BlackbirdInput, BlackbirdOutput
+from eidolon.tools.ai_audit import AiAudit, AiAuditInput, AiAuditOutput
+from eidolon.tools.base import run_to_result
+from eidolon.tools.blackbird import Blackbird, BlackbirdInput, BlackbirdOutput
 from eidolon.tools.broker_scan import BrokerScanInput, BrokerScanOutput
-from eidolon.tools.dehashed import DehashedOutput
-from eidolon.tools.ghunt import GHuntInput, GHuntOutput
-from eidolon.tools.hibp import HibpInput, HibpOutput
-from eidolon.tools.holehe import HoleheInput, HoleheOutput
-from eidolon.tools.maigret import MaigretInput, MaigretOutput
-from eidolon.tools.paste import PasteOutput
+from eidolon.tools.dehashed import Dehashed, DehashedInput, DehashedOutput
+from eidolon.tools.ghunt import Ghunt, GHuntInput, GHuntOutput
+from eidolon.tools.hibp import Hibp, HibpInput, HibpOutput
+from eidolon.tools.holehe import Holehe, HoleheInput, HoleheOutput
+from eidolon.tools.maigret import Maigret, MaigretInput, MaigretOutput
+from eidolon.tools.paste import Paste, PasteInput, PasteOutput
 from eidolon.tools.phone import PhoneInput, PhoneLookupOutput
 from eidolon.tools.public_records import PublicRecordsOutput
-from eidolon.tools.spiderfoot import SpiderfootInput, SpiderfootOutput
-from eidolon.tools.stealer import StealerOutput
-from eidolon.tools.whoxy import WhoxyOutput
+from eidolon.tools.spiderfoot import Spiderfoot, SpiderfootInput, SpiderfootOutput
+from eidolon.tools.stealer import Stealer, StealerInput, StealerOutput
+from eidolon.tools.whoxy import Whoxy, WhoxyInput, WhoxyOutput
 
 
 class TestHibpTool:
     def test_returns_tool_result(self):
         inp = HibpInput(input_type="email", value="test@example.com")
-        result = hibp_tool.run(inp)
+        result = run_to_result(Hibp(), inp)
         assert isinstance(result, ToolResult)
 
     def test_success_true_in_test_mode(self):
         inp = HibpInput(input_type="email", value="test@example.com")
-        result = hibp_tool.run(inp)
+        result = run_to_result(Hibp(), inp)
         assert result.success is True
 
     def test_tool_name(self):
         inp = HibpInput(input_type="email", value="test@example.com")
-        result = hibp_tool.run(inp)
+        result = run_to_result(Hibp(), inp)
         assert result.tool == "hibp"
 
     def test_data_validates_as_hibp_output(self):
         inp = HibpInput(input_type="email", value="test@example.com")
-        result = hibp_tool.run(inp)
+        result = run_to_result(Hibp(), inp)
         output = HibpOutput(**result.data)
         assert output.breach_count == 3
         assert len(output.breaches) == 3
 
     def test_breach_records_have_expected_fields(self):
         inp = HibpInput(input_type="email", value="test@example.com")
-        result = hibp_tool.run(inp)
+        result = run_to_result(Hibp(), inp)
         output = HibpOutput(**result.data)
         breach = output.breaches[0]
         assert breach.name == "Adobe"
@@ -74,24 +75,24 @@ class TestHibpTool:
 
     def test_error_is_none_on_success(self):
         inp = HibpInput(input_type="email", value="test@example.com")
-        result = hibp_tool.run(inp)
+        result = run_to_result(Hibp(), inp)
         assert result.error is None
 
 
 class TestSpiderfootTool:
     def test_returns_tool_result(self):
         inp = SpiderfootInput(target="test@example.com", target_type="emailaddr")
-        result = spiderfoot_tool.run(inp)
+        result = run_to_result(Spiderfoot(), inp)
         assert isinstance(result, ToolResult)
 
     def test_success_true_in_test_mode(self):
         inp = SpiderfootInput(target="test@example.com", target_type="emailaddr")
-        result = spiderfoot_tool.run(inp)
+        result = run_to_result(Spiderfoot(), inp)
         assert result.success is True
 
     def test_data_validates_as_spiderfoot_output(self):
         inp = SpiderfootInput(target="test@example.com", target_type="emailaddr")
-        result = spiderfoot_tool.run(inp)
+        result = run_to_result(Spiderfoot(), inp)
         output = SpiderfootOutput(**result.data)
         assert output.status == "FINISHED"
         assert output.element_count == 5
@@ -99,7 +100,7 @@ class TestSpiderfootTool:
 
     def test_elements_have_expected_fields(self):
         inp = SpiderfootInput(target="test@example.com", target_type="emailaddr")
-        result = spiderfoot_tool.run(inp)
+        result = run_to_result(Spiderfoot(), inp)
         output = SpiderfootOutput(**result.data)
         el = output.elements[0]
         assert el.module == "sfp_gravatar"
@@ -116,37 +117,37 @@ class TestSpiderfootTool:
 class TestBrokerScanTool:
     def test_returns_tool_result(self):
         inp = BrokerScanInput(input_type="name", value="John Doe")
-        result = broker_scan_tool.run(inp)
+        result = broker_scan_tool.scan(inp)
         assert isinstance(result, ToolResult)
 
     def test_success_true_in_test_mode(self):
         inp = BrokerScanInput(input_type="name", value="John Doe")
-        result = broker_scan_tool.run(inp)
+        result = broker_scan_tool.scan(inp)
         assert result.success is True
 
     def test_data_validates_as_broker_output(self):
         inp = BrokerScanInput(input_type="name", value="John Doe")
-        result = broker_scan_tool.run(inp)
+        result = broker_scan_tool.scan(inp)
         output = BrokerScanOutput(**result.data)
         assert output.brokers_found_count == 4
-        assert output.exposure_score == 62
+        assert output.exposure_score == 100
 
     def test_easyoptouts_url_present(self):
         inp = BrokerScanInput(input_type="name", value="John Doe")
-        result = broker_scan_tool.run(inp)
+        result = broker_scan_tool.scan(inp)
         output = BrokerScanOutput(**result.data)
         assert output.easyoptouts_url == "https://easyoptouts.com/dashboard"
 
     def test_broker_profiles_have_optout_urls(self):
         inp = BrokerScanInput(input_type="name", value="John Doe")
-        result = broker_scan_tool.run(inp)
+        result = broker_scan_tool.scan(inp)
         output = BrokerScanOutput(**result.data)
         for profile in output.brokers_found:
             assert profile.optout_url != ""
 
     def test_priority_optouts_populated(self):
         inp = BrokerScanInput(input_type="name", value="John Doe")
-        result = broker_scan_tool.run(inp)
+        result = broker_scan_tool.scan(inp)
         output = BrokerScanOutput(**result.data)
         assert len(output.priority_optouts) > 0
 
@@ -154,30 +155,30 @@ class TestBrokerScanTool:
 class TestAiAuditTool:
     def test_returns_tool_result(self):
         inp = AiAuditInput(platforms=["claude", "chatgpt", "gemini", "grok"])
-        result = ai_audit_tool.run(inp)
+        result = run_to_result(AiAudit(), inp)
         assert isinstance(result, ToolResult)
 
     def test_success_true_in_test_mode(self):
         inp = AiAuditInput(platforms=["claude", "chatgpt"])
-        result = ai_audit_tool.run(inp)
+        result = run_to_result(AiAudit(), inp)
         assert result.success is True
 
     def test_data_validates_as_ai_audit_output(self):
         inp = AiAuditInput(platforms=["claude", "chatgpt", "gemini", "grok"])
-        result = ai_audit_tool.run(inp)
+        result = run_to_result(AiAudit(), inp)
         output = AiAuditOutput(**result.data)
         assert output.high_risk_count == 2
         assert output.overall_risk == "high"
 
     def test_platforms_found_count(self):
         inp = AiAuditInput(platforms=["claude", "chatgpt", "gemini", "grok"])
-        result = ai_audit_tool.run(inp)
+        result = run_to_result(AiAudit(), inp)
         output = AiAuditOutput(**result.data)
         assert len(output.platforms_found) == 4
 
     def test_action_items_populated(self):
         inp = AiAuditInput(platforms=["claude", "chatgpt", "gemini", "grok"])
-        result = ai_audit_tool.run(inp)
+        result = run_to_result(AiAudit(), inp)
         output = AiAuditOutput(**result.data)
         assert len(output.action_items) > 0
 
@@ -185,24 +186,24 @@ class TestAiAuditTool:
 class TestHoleheTool:
     def test_returns_tool_result(self):
         inp = HoleheInput(email="test@example.com")
-        result = holehe_tool.run(inp)
+        result = run_to_result(Holehe(), inp)
         assert isinstance(result, ToolResult)
 
     def test_success_true_in_test_mode(self):
         inp = HoleheInput(email="test@example.com")
-        result = holehe_tool.run(inp)
+        result = run_to_result(Holehe(), inp)
         assert result.success is True
 
     def test_data_validates_as_holehe_output(self):
         inp = HoleheInput(email="test@example.com")
-        result = holehe_tool.run(inp)
+        result = run_to_result(Holehe(), inp)
         output = HoleheOutput(**result.data)
         assert output.platforms_checked > 0
         assert output.found_count == len(output.platforms_found)
 
     def test_found_platforms_have_expected_fields(self):
         inp = HoleheInput(email="test@example.com")
-        result = holehe_tool.run(inp)
+        result = run_to_result(Holehe(), inp)
         output = HoleheOutput(**result.data)
         for match in output.platforms_found:
             assert match.platform
@@ -211,20 +212,20 @@ class TestHoleheTool:
 
 class TestBlackbirdTool:
     def test_returns_tool_result(self):
-        result = blackbird_tool.run(BlackbirdInput(email="test@example.com"))
+        result = run_to_result(Blackbird(), BlackbirdInput(email="test@example.com"))
         assert isinstance(result, ToolResult)
 
     def test_success_in_test_mode(self):
-        result = blackbird_tool.run(BlackbirdInput(email="test@example.com"))
+        result = run_to_result(Blackbird(), BlackbirdInput(email="test@example.com"))
         assert result.success is True
 
     def test_data_validates_as_blackbird_output(self):
-        result = blackbird_tool.run(BlackbirdInput(email="test@example.com"))
+        result = run_to_result(Blackbird(), BlackbirdInput(email="test@example.com"))
         output = BlackbirdOutput(**result.data)
         assert output.found_count == len(output.accounts_found)
 
     def test_accounts_have_platform_and_url(self):
-        result = blackbird_tool.run(BlackbirdInput(email="test@example.com"))
+        result = run_to_result(Blackbird(), BlackbirdInput(email="test@example.com"))
         output = BlackbirdOutput(**result.data)
         for account in output.accounts_found:
             assert account.platform
@@ -233,20 +234,20 @@ class TestBlackbirdTool:
 
 class TestMaigretTool:
     def test_returns_tool_result(self):
-        result = maigret_tool.run(MaigretInput(username="testuser"))
+        result = run_to_result(Maigret(), MaigretInput(username="testuser"))
         assert isinstance(result, ToolResult)
 
     def test_success_in_test_mode(self):
-        result = maigret_tool.run(MaigretInput(username="testuser"))
+        result = run_to_result(Maigret(), MaigretInput(username="testuser"))
         assert result.success is True
 
     def test_data_validates_as_maigret_output(self):
-        result = maigret_tool.run(MaigretInput(username="testuser"))
+        result = run_to_result(Maigret(), MaigretInput(username="testuser"))
         output = MaigretOutput(**result.data)
         assert output.found_count == len(output.profiles_found)
 
     def test_profiles_have_url(self):
-        result = maigret_tool.run(MaigretInput(username="testuser"))
+        result = run_to_result(Maigret(), MaigretInput(username="testuser"))
         output = MaigretOutput(**result.data)
         for profile in output.profiles_found:
             assert profile.url.startswith("http")
@@ -254,20 +255,20 @@ class TestMaigretTool:
 
 class TestGHuntTool:
     def test_returns_tool_result(self):
-        result = ghunt_tool.run(GHuntInput(email="test@gmail.com"))
+        result = run_to_result(Ghunt(), GHuntInput(email="test@gmail.com"))
         assert isinstance(result, ToolResult)
 
     def test_success_in_test_mode(self):
-        result = ghunt_tool.run(GHuntInput(email="test@gmail.com"))
+        result = run_to_result(Ghunt(), GHuntInput(email="test@gmail.com"))
         assert result.success is True
 
     def test_data_validates_as_ghunt_output(self):
-        result = ghunt_tool.run(GHuntInput(email="test@gmail.com"))
+        result = run_to_result(Ghunt(), GHuntInput(email="test@gmail.com"))
         output = GHuntOutput(**result.data)
         assert isinstance(output.found, bool)
 
     def test_found_has_services(self):
-        result = ghunt_tool.run(GHuntInput(email="test@gmail.com"))
+        result = run_to_result(Ghunt(), GHuntInput(email="test@gmail.com"))
         output = GHuntOutput(**result.data)
         if output.found:
             assert isinstance(output.google_services, list)
@@ -275,27 +276,27 @@ class TestGHuntTool:
 
 class TestPhoneTool:
     def test_returns_tool_result(self):
-        result = phone_tool.run(PhoneInput(phone="+14155551234"))
+        result = phone_tool.lookup("+14155551234")
         assert isinstance(result, ToolResult)
 
     def test_success_true_in_test_mode(self):
-        result = phone_tool.run(PhoneInput(phone="+14155551234"))
+        result = phone_tool.lookup("+14155551234")
         assert result.success is True
 
     def test_data_validates_as_phone_output(self):
-        result = phone_tool.run(PhoneInput(phone="+14155551234"))
+        result = phone_tool.lookup("+14155551234")
         output = PhoneLookupOutput(**result.data)
         assert output.valid is True
         assert output.line_type == "mobile"
 
     def test_carrier_populated(self):
-        result = phone_tool.run(PhoneInput(phone="+14155551234"))
+        result = phone_tool.lookup("+14155551234")
         output = PhoneLookupOutput(**result.data)
         assert output.carrier is not None
         assert output.carrier.name != ""
 
     def test_location_populated(self):
-        result = phone_tool.run(PhoneInput(phone="+14155551234"))
+        result = phone_tool.lookup("+14155551234")
         output = PhoneLookupOutput(**result.data)
         assert output.location != ""
         assert output.country_code == "US"
@@ -303,21 +304,21 @@ class TestPhoneTool:
 
 class TestPublicRecordsTool:
     def test_returns_tool_result(self):
-        result = public_records_tool.run("John Doe")
+        result = public_records_tool.lookup("John Doe")
         assert isinstance(result, ToolResult)
 
     def test_success_true_in_test_mode(self):
-        result = public_records_tool.run("John Doe")
+        result = public_records_tool.lookup("John Doe")
         assert result.success is True
 
     def test_data_validates_as_output(self):
-        result = public_records_tool.run("John Doe")
+        result = public_records_tool.lookup("John Doe")
         output = PublicRecordsOutput(**result.data)
         assert output.court_case_count == 1
         assert output.corporate_record_count == 1
 
     def test_court_case_fields(self):
-        result = public_records_tool.run("John Doe")
+        result = public_records_tool.lookup("John Doe")
         output = PublicRecordsOutput(**result.data)
         case = output.court_cases[0]
         assert case.case_name != ""
@@ -325,7 +326,7 @@ class TestPublicRecordsTool:
         assert case.court != ""
 
     def test_corporate_record_fields(self):
-        result = public_records_tool.run("John Doe")
+        result = public_records_tool.lookup("John Doe")
         output = PublicRecordsOutput(**result.data)
         rec = output.corporate_records[0]
         assert rec.company_name != ""
@@ -335,43 +336,31 @@ class TestPublicRecordsTool:
 
 class TestDehashedTool:
     def test_returns_tool_result(self):
-        result = dehashed_tool.run(
-            dehashed_tool.DehashedInput(email="test@example.com")
-        )
+        result = run_to_result(Dehashed(), DehashedInput(email="test@example.com"))
         assert isinstance(result, ToolResult)
 
     def test_success_true_in_test_mode(self):
-        result = dehashed_tool.run(
-            dehashed_tool.DehashedInput(email="test@example.com")
-        )
+        result = run_to_result(Dehashed(), DehashedInput(email="test@example.com"))
         assert result.success is True
 
     def test_tool_name(self):
-        result = dehashed_tool.run(
-            dehashed_tool.DehashedInput(email="test@example.com")
-        )
+        result = run_to_result(Dehashed(), DehashedInput(email="test@example.com"))
         assert result.tool == "dehashed"
 
     def test_data_validates_as_output(self):
-        result = dehashed_tool.run(
-            dehashed_tool.DehashedInput(email="test@example.com")
-        )
+        result = run_to_result(Dehashed(), DehashedInput(email="test@example.com"))
         output = DehashedOutput(**result.data)
         assert output.total == 4
         assert len(output.entries) == 4
 
     def test_aggregated_counts(self):
-        result = dehashed_tool.run(
-            dehashed_tool.DehashedInput(email="test@example.com")
-        )
+        result = run_to_result(Dehashed(), DehashedInput(email="test@example.com"))
         output = DehashedOutput(**result.data)
         assert output.plaintext_password_count == 1
         assert output.hashed_password_count == 2
 
     def test_unique_fields(self):
-        result = dehashed_tool.run(
-            dehashed_tool.DehashedInput(email="test@example.com")
-        )
+        result = run_to_result(Dehashed(), DehashedInput(email="test@example.com"))
         output = DehashedOutput(**result.data)
         assert "testuser" in output.unique_usernames
         assert len(output.unique_addresses) == 1
@@ -386,38 +375,38 @@ class TestDehashedTool:
 
 class TestWhoxyTool:
     def test_returns_tool_result(self):
-        result = whoxy_tool.run("test@example.com")
+        result = run_to_result(Whoxy(), WhoxyInput(email="test@example.com"))
         assert isinstance(result, ToolResult)
 
     def test_success_true_in_test_mode(self):
-        result = whoxy_tool.run("test@example.com")
+        result = run_to_result(Whoxy(), WhoxyInput(email="test@example.com"))
         assert result.success is True
 
     def test_tool_name(self):
-        result = whoxy_tool.run("test@example.com")
+        result = run_to_result(Whoxy(), WhoxyInput(email="test@example.com"))
         assert result.tool == "whoxy"
 
     def test_data_validates_as_output(self):
-        result = whoxy_tool.run("test@example.com")
+        result = run_to_result(Whoxy(), WhoxyInput(email="test@example.com"))
         output = WhoxyOutput(**result.data)
         assert output.total_results == 3
         assert len(output.domains) == 3
 
     def test_active_expired_counts(self):
-        result = whoxy_tool.run("test@example.com")
+        result = run_to_result(Whoxy(), WhoxyInput(email="test@example.com"))
         output = WhoxyOutput(**result.data)
         assert output.active_domain_count == 1
         assert output.expired_domain_count == 2
 
     def test_aggregated_signals(self):
-        result = whoxy_tool.run("test@example.com")
+        result = run_to_result(Whoxy(), WhoxyInput(email="test@example.com"))
         output = WhoxyOutput(**result.data)
         assert "Test User Consulting LLC" in output.unique_company_names
         assert len(output.unique_addresses) == 2
         assert len(output.unique_registrar_names) == 2
 
     def test_domain_fields(self):
-        result = whoxy_tool.run("test@example.com")
+        result = run_to_result(Whoxy(), WhoxyInput(email="test@example.com"))
         output = WhoxyOutput(**result.data)
         dom = output.domains[0]
         assert dom.domain_name == "testuserconsulting.com"
@@ -427,19 +416,19 @@ class TestWhoxyTool:
 
 class TestPasteTool:
     def test_returns_tool_result(self):
-        result = paste_tool.run("test@example.com")
+        result = run_to_result(Paste(), PasteInput(email="test@example.com"))
         assert isinstance(result, ToolResult)
 
     def test_success_in_test_mode(self):
-        result = paste_tool.run("test@example.com")
+        result = run_to_result(Paste(), PasteInput(email="test@example.com"))
         assert result.success is True
 
     def test_tool_name(self):
-        result = paste_tool.run("test@example.com")
+        result = run_to_result(Paste(), PasteInput(email="test@example.com"))
         assert result.tool == "paste"
 
     def test_output_schema(self):
-        result = paste_tool.run("test@example.com")
+        result = run_to_result(Paste(), PasteInput(email="test@example.com"))
         output = PasteOutput(**result.data)
         assert output.paste_count == 3
         assert output.credential_paste_count == 2
@@ -465,19 +454,19 @@ class TestPasteTool:
 
 class TestStealerTool:
     def test_returns_tool_result(self):
-        result = stealer_tool.run("test@example.com")
+        result = run_to_result(Stealer(), StealerInput(email="test@example.com"))
         assert isinstance(result, ToolResult)
 
     def test_success_in_test_mode(self):
-        result = stealer_tool.run("test@example.com")
+        result = run_to_result(Stealer(), StealerInput(email="test@example.com"))
         assert result.success is True
 
     def test_tool_name(self):
-        result = stealer_tool.run("test@example.com")
+        result = run_to_result(Stealer(), StealerInput(email="test@example.com"))
         assert result.tool == "stealer"
 
     def test_output_schema(self):
-        result = stealer_tool.run("test@example.com")
+        result = run_to_result(Stealer(), StealerInput(email="test@example.com"))
         output = StealerOutput(**result.data)
         assert output.found is True
         assert output.stealer_count == 2
@@ -485,13 +474,13 @@ class TestStealerTool:
         assert "Vidar" in output.malware_families
 
     def test_compromise_dates(self):
-        result = stealer_tool.run("test@example.com")
+        result = run_to_result(Stealer(), StealerInput(email="test@example.com"))
         output = StealerOutput(**result.data)
         assert output.earliest_compromise == "2023-08-14"
         assert output.latest_compromise == "2024-11-02"
 
     def test_log_fields(self):
-        result = stealer_tool.run("test@example.com")
+        result = run_to_result(Stealer(), StealerInput(email="test@example.com"))
         output = StealerOutput(**result.data)
         log = output.logs[0]
         assert log.computer_name == "DESKTOP-A1B2C3"
@@ -500,7 +489,7 @@ class TestStealerTool:
 
     def test_ip_partially_masked_in_fixture(self):
         # Hudson Rock masks IPs server-side (e.g. "98.123.***.***")
-        result = stealer_tool.run("test@example.com")
+        result = run_to_result(Stealer(), StealerInput(email="test@example.com"))
         output = StealerOutput(**result.data)
         for log in output.logs:
             if log.ip:

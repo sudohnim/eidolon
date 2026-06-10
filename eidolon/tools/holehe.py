@@ -1,15 +1,11 @@
-import json
-import logging
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 import httpx
+import structlog
 import trio
 from pydantic import BaseModel
 
-from eidolon import config
-from eidolon.core.models import ToolResult
+from eidolon.tools.base import Tool
 
 
 class HoleheInput(BaseModel):
@@ -25,31 +21,21 @@ class HoleheMatch(BaseModel):
 
 
 class HoleheOutput(BaseModel):
-    email: str
-    platforms_checked: int
-    platforms_found: list[HoleheMatch]
-    found_count: int
+    email: str = ""
+    platforms_checked: int = 0
+    platforms_found: list[HoleheMatch] = []
+    found_count: int = 0
 
 
-logger = logging.getLogger(__name__)
+class Holehe(Tool[HoleheInput, HoleheOutput]):
+    name = "holehe"
+    input_schema = HoleheInput
+    output_schema = HoleheOutput
 
-FIXTURE_PATH = (
-    Path(__file__).parent.parent.parent / "tests" / "fixtures" / "holehe_response.json"
-)
+    def _input_value(self, inp: HoleheInput) -> str:
+        return inp.email
 
-
-def _load_fixture() -> ToolResult:
-    raw = json.loads(FIXTURE_PATH.read_text())
-    return ToolResult(**raw)
-
-
-def run(inp: HoleheInput) -> ToolResult:
-    logger.info("holehe: checking email=%s", inp.email)
-
-    if config.is_test_mode():
-        return _load_fixture()
-
-    try:
+    def _run(self, inp: HoleheInput, log: structlog.stdlib.BoundLogger) -> HoleheOutput:
         results = trio.run(_run_async, inp.email)
         matches = [
             HoleheMatch(
@@ -62,32 +48,12 @@ def run(inp: HoleheInput) -> ToolResult:
             for r in results
         ]
         found = [m for m in matches if m.exists]
-        output = HoleheOutput(
+        log.info("ok", checked=len(matches), found=len(found))
+        return HoleheOutput(
             email=inp.email,
             platforms_checked=len(matches),
             platforms_found=found,
             found_count=len(found),
-        )
-        logger.info("holehe: checked %d platforms, found %d", len(matches), len(found))
-        return ToolResult(
-            success=True,
-            tool="holehe",
-            input_type="email",
-            input_value=inp.email,
-            timestamp=datetime.now(timezone.utc),
-            data=output.model_dump(),
-        )
-
-    except Exception as exc:
-        logger.error("holehe: FAILED — %s", exc, exc_info=True)
-        return ToolResult(
-            success=False,
-            tool="holehe",
-            input_type="email",
-            input_value=inp.email,
-            timestamp=datetime.now(timezone.utc),
-            data={},
-            error=f"holehe error: {exc}",
         )
 
 

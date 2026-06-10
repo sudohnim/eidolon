@@ -8,7 +8,7 @@ from pydantic.alias_generators import to_pascal
 
 from eidolon import config
 from eidolon.core.models import InputType
-from eidolon.core.tool import BaseTool
+from eidolon.tools.base import Tool
 
 
 class HibpInput(BaseModel):
@@ -38,14 +38,16 @@ class BreachRecord(BaseModel):
 
 
 class HibpOutput(BaseModel):
-    query_value: str
-    breach_count: int
-    breaches: list[BreachRecord]
-    paste_count: int
+    query_value: str = ""
+    breach_count: int = 0
+    breaches: list[BreachRecord] = []
+    paste_count: int = 0
 
 
-class HibpTool(BaseTool[HibpInput]):
+class Hibp(Tool[HibpInput, HibpOutput]):
     name = "hibp"
+    input_schema = HibpInput
+    output_schema = HibpOutput
 
     def _input_type(self, inp: HibpInput) -> InputType:
         return inp.input_type
@@ -53,7 +55,7 @@ class HibpTool(BaseTool[HibpInput]):
     def _input_value(self, inp: HibpInput) -> str:
         return inp.value
 
-    def _execute(self, inp: HibpInput, log: structlog.stdlib.BoundLogger) -> dict:
+    def _run(self, inp: HibpInput, log: structlog.stdlib.BoundLogger) -> HibpOutput:
         api_key = config.get("HIBP_API_KEY")
         url = f"https://haveibeenpwned.com/api/v3/breachedaccount/{inp.value}"
         headers = {"hibp-api-key": api_key, "user-agent": "osint-agent"}
@@ -61,9 +63,7 @@ class HibpTool(BaseTool[HibpInput]):
         resp = requests.get(url, headers=headers, params=params, timeout=10)
 
         if resp.status_code == 404:
-            return HibpOutput(
-                query_value=inp.value, breach_count=0, breaches=[], paste_count=0
-            ).model_dump()
+            return HibpOutput(query_value=inp.value, paste_count=0)
 
         if resp.status_code == 429:
             retry_after = int(resp.headers.get("retry-after", 2))
@@ -78,7 +78,4 @@ class HibpTool(BaseTool[HibpInput]):
             breach_count=len(breaches),
             breaches=breaches,
             paste_count=-1,
-        ).model_dump()
-
-
-run = HibpTool().run
+        )
