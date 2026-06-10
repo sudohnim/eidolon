@@ -1,0 +1,15 @@
+{
+  "records": [
+    {
+      "company_name": "Acme Technologies Inc",
+      "role": "director",
+      "company_number": "C1234567",
+      "jurisdiction": "US/DE",
+      "status": "active",
+      "start_date": "2018-06-01",
+      "end_date": "",
+      "source_url": "https://opencorporates.com/officers/12345"
+    }
+  ],
+  "count": 1
+}

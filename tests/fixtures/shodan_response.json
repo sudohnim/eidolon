@@ -1,38 +1,51 @@
 {
-  "success": true,
-  "tool": "shodan",
-  "input_type": "org",
-  "input_value": "93.184.216.34",
-  "timestamp": "2026-06-07T10:00:00",
-  "error": null,
-  "data": {
-    "ips_checked": 2,
-    "hosts": [
-      {
-        "ip": "93.184.216.34",
-        "ports": [80, 443, 8080],
-        "hostnames": ["example.com", "www.example.com"],
-        "org": "Edgecast Inc.",
-        "isp": "MCI Communications Services, Inc. d/b/a Verizon Business",
-        "country": "United States",
-        "vulns": ["CVE-2021-44228"],
-        "tags": ["cdn"],
-        "last_update": "2026-05-30T14:22:11.123456"
-      },
-      {
-        "ip": "104.21.14.1",
-        "ports": [22, 80, 443],
-        "hostnames": ["mail.example.com"],
-        "org": "Cloudflare, Inc.",
-        "isp": "Cloudflare, Inc.",
-        "country": "United States",
-        "vulns": [],
-        "tags": ["cloud"],
-        "last_update": "2026-06-01T08:10:05.654321"
-      }
-    ],
-    "total_open_ports": 6,
-    "total_vulns": 1,
-    "high_risk_ips": ["93.184.216.34"]
-  }
+  "ips_checked": 2,
+  "hosts": [
+    {
+      "ip": "93.184.216.34",
+      "ports": [
+        80,
+        443,
+        8080
+      ],
+      "hostnames": [
+        "example.com",
+        "www.example.com"
+      ],
+      "org": "Edgecast Inc.",
+      "isp": "MCI Communications Services, Inc. d/b/a Verizon Business",
+      "country": "United States",
+      "vulns": [
+        "CVE-2021-44228"
+      ],
+      "tags": [
+        "cdn"
+      ],
+      "last_update": "2026-05-30T14:22:11.123456"
+    },
+    {
+      "ip": "104.21.14.1",
+      "ports": [
+        22,
+        80,
+        443
+      ],
+      "hostnames": [
+        "mail.example.com"
+      ],
+      "org": "Cloudflare, Inc.",
+      "isp": "Cloudflare, Inc.",
+      "country": "United States",
+      "vulns": [],
+      "tags": [
+        "cloud"
+      ],
+      "last_update": "2026-06-01T08:10:05.654321"
+    }
+  ],
+  "total_open_ports": 6,
+  "total_vulns": 1,
+  "high_risk_ips": [
+    "93.184.216.34"
+  ]
 }

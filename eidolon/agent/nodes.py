@@ -17,14 +17,13 @@ from eidolon.core.models import (
     ToolResult,
 )
 from eidolon.tools.ai_audit import AiAuditInput
+from eidolon.tools.base import run_to_result
 from eidolon.tools.blackbird import BlackbirdInput
 from eidolon.tools.broker_scan import BrokerScanInput, BrokerScanOutput
 from eidolon.tools.ghunt import GHuntInput
 from eidolon.tools.hibp import HibpInput
 from eidolon.tools.holehe import HoleheInput
 from eidolon.tools.maigret import MaigretInput
-from eidolon.tools.phone import PhoneInput
-from eidolon.tools.shodan import ShodanInput
 from eidolon.tools.spiderfoot import SpiderfootInput
 
 logger = logging.getLogger(__name__)
@@ -151,7 +150,7 @@ def intake_node(state: PipelineState) -> PipelineState:
 
 
 def breach_check_node(state: PipelineState) -> PipelineState:
-    from eidolon.tools import hibp as hibp_tool
+    from eidolon.tools.hibp import Hibp
 
     primary = next(
         (c for c in state.classifications if c.type in ("email", "phone")),
@@ -162,7 +161,7 @@ def breach_check_node(state: PipelineState) -> PipelineState:
         return state
 
     inp = HibpInput(input_type=primary.type, value=primary.value)
-    result = hibp_tool.run(inp)
+    result = run_to_result(Hibp(), inp)
     if result.success:
         logger.info(
             "breach_check_node: OK — breach_count=%s",
@@ -249,7 +248,7 @@ def broker_scan_node(state: PipelineState) -> PipelineState:
         state=state.location_state,
         zip_code=state.location_zip,
     )
-    result = broker_tool.run(inp)
+    result = broker_tool.scan(inp)
     if result.success:
         logger.info(
             "broker_scan_node: OK — brokers_found=%s exposure_score=%s",
@@ -262,7 +261,7 @@ def broker_scan_node(state: PipelineState) -> PipelineState:
 
 
 def surface_map_node(state: PipelineState) -> PipelineState:
-    from eidolon.tools import spiderfoot as sf_tool
+    from eidolon.tools.spiderfoot import Spiderfoot
 
     primary = state.classifications[0] if state.classifications else None
     if not primary:
@@ -274,7 +273,7 @@ def surface_map_node(state: PipelineState) -> PipelineState:
         SPIDERFOOT_TARGET_TYPE.get(primary.type, "human_name"),
     )
     inp = SpiderfootInput(target=primary.value, target_type=target_type)
-    result = sf_tool.run(inp)
+    result = run_to_result(Spiderfoot(), inp)
     if result.success:
         logger.info(
             "surface_map_node: OK — elements=%s", result.data.get("element_count", 0)
@@ -285,7 +284,7 @@ def surface_map_node(state: PipelineState) -> PipelineState:
 
 
 def holehe_node(state: PipelineState) -> PipelineState:
-    from eidolon.tools import holehe as holehe_tool
+    from eidolon.tools.holehe import Holehe
 
     primary = next(
         (c for c in state.classifications if c.type == "email"),
@@ -296,7 +295,7 @@ def holehe_node(state: PipelineState) -> PipelineState:
         return state
 
     inp = HoleheInput(email=primary.value)
-    result = holehe_tool.run(inp)
+    result = run_to_result(Holehe(), inp)
     if result.success:
         logger.info(
             "holehe_node: OK — found=%s checked=%s",
@@ -309,7 +308,7 @@ def holehe_node(state: PipelineState) -> PipelineState:
 
 
 def blackbird_node(state: PipelineState) -> PipelineState:
-    from eidolon.tools import blackbird as blackbird_tool
+    from eidolon.tools.blackbird import Blackbird
 
     primary = next((c for c in state.classifications if c.type == "email"), None)
     if not primary:
@@ -317,7 +316,7 @@ def blackbird_node(state: PipelineState) -> PipelineState:
         return state
 
     inp = BlackbirdInput(email=primary.value)
-    result = blackbird_tool.run(inp)
+    result = run_to_result(Blackbird(), inp)
     if result.success:
         logger.info("blackbird_node: OK — found=%s", result.data.get("found_count", 0))
     else:
@@ -326,7 +325,7 @@ def blackbird_node(state: PipelineState) -> PipelineState:
 
 
 def maigret_node(state: PipelineState) -> PipelineState:
-    from eidolon.tools import maigret as maigret_tool
+    from eidolon.tools.maigret import Maigret
 
     primary = state.classifications[0] if state.classifications else None
     if not primary:
@@ -342,7 +341,7 @@ def maigret_node(state: PipelineState) -> PipelineState:
         return state
 
     inp = MaigretInput(username=username)
-    result = maigret_tool.run(inp)
+    result = run_to_result(Maigret(), inp)
     if result.success:
         logger.info(
             "maigret_node: OK — found=%s checked=%s",
@@ -355,7 +354,7 @@ def maigret_node(state: PipelineState) -> PipelineState:
 
 
 def ghunt_node(state: PipelineState) -> PipelineState:
-    from eidolon.tools import ghunt as ghunt_tool
+    from eidolon.tools.ghunt import Ghunt
 
     primary = next((c for c in state.classifications if c.type == "email"), None)
     if not primary:
@@ -363,7 +362,7 @@ def ghunt_node(state: PipelineState) -> PipelineState:
         return state
 
     inp = GHuntInput(email=primary.value)
-    result = ghunt_tool.run(inp)
+    result = run_to_result(Ghunt(), inp)
     if result.success:
         logger.info(
             "ghunt_node: OK — found=%s services=%s",
@@ -376,8 +375,7 @@ def ghunt_node(state: PipelineState) -> PipelineState:
 
 
 def shodan_node(state: PipelineState) -> PipelineState:
-    from eidolon.tools import shodan as shodan_tool
-    from eidolon.tools.shodan import ShodanOutput
+    from eidolon.tools.shodan import Shodan, ShodanInput, ShodanOutput
 
     if not state.spiderfoot_result or not state.spiderfoot_result.success:
         logger.info("shodan_node: no spiderfoot_result, skipping")
@@ -403,7 +401,7 @@ def shodan_node(state: PipelineState) -> PipelineState:
     all_hosts = []
     for ip in ips:
         inp = ShodanInput(ip=ip)
-        result = shodan_tool.run(inp)
+        result = run_to_result(Shodan(), inp)
         if result.success:
             all_hosts.extend(result.data.get("hosts", []))
         else:
@@ -443,7 +441,7 @@ def shodan_node(state: PipelineState) -> PipelineState:
 
 
 def ai_audit_node(state: PipelineState) -> PipelineState:
-    from eidolon.tools import ai_audit as audit_tool
+    from eidolon.tools.ai_audit import AiAudit
 
     # Derive platforms from Blackbird + Holehe + SpiderFoot social media elements
     platforms: set[str] = set()
@@ -471,7 +469,7 @@ def ai_audit_node(state: PipelineState) -> PipelineState:
 
     logger.info("ai_audit_node: detected platforms=%s", sorted(platforms))
     inp = AiAuditInput(platforms=sorted(platforms))
-    result = audit_tool.run(inp)
+    result = run_to_result(AiAudit(), inp)
     if result.success:
         logger.info(
             "ai_audit_node: OK — high_risk=%s overall=%s",
@@ -493,7 +491,7 @@ def dehashed_node(state: PipelineState) -> PipelineState:
 
     Skips gracefully if DEHASHED_EMAIL or DEHASHED_API_KEY are not set.
     """
-    from eidolon.tools import dehashed as dehashed_tool
+    from eidolon.tools.dehashed import Dehashed, DehashedInput
 
     primary = next(
         (c for c in state.classifications if c.type == "email"),
@@ -503,7 +501,7 @@ def dehashed_node(state: PipelineState) -> PipelineState:
         logger.info("dehashed_node: no email input, skipping")
         return state
 
-    result = dehashed_tool.run(dehashed_tool.DehashedInput(email=primary.value))
+    result = run_to_result(Dehashed(), DehashedInput(email=primary.value))
     if result.success:
         d = result.data
         logger.info(
@@ -526,14 +524,14 @@ def paste_node(state: PipelineState) -> PipelineState:
     often appears before HIBP ingests the breach (psbdmp indexes in near
     real-time). No API key required.
     """
-    from eidolon.tools import paste as paste_tool
+    from eidolon.tools.paste import Paste, PasteInput
 
     primary = next((c for c in state.classifications if c.type == "email"), None)
     if not primary:
         logger.info("paste_node: no email input, skipping")
         return state
 
-    result = paste_tool.run(primary.value)
+    result = run_to_result(Paste(), PasteInput(email=primary.value))
     if result.success:
         d = result.data
         logger.info(
@@ -559,14 +557,14 @@ def stealer_node(state: PipelineState) -> PipelineState:
 
     Free, no API key required.
     """
-    from eidolon.tools import stealer as stealer_tool
+    from eidolon.tools.stealer import Stealer, StealerInput
 
     primary = next((c for c in state.classifications if c.type == "email"), None)
     if not primary:
         logger.info("stealer_node: no email input, skipping")
         return state
 
-    result = stealer_tool.run(primary.value)
+    result = run_to_result(Stealer(), StealerInput(email=primary.value))
     if result.success:
         d = result.data
         if d.get("found"):
@@ -593,14 +591,14 @@ def whoxy_node(state: PipelineState) -> PipelineState:
 
     Email inputs only. Skips gracefully if WHOXY_API_KEY is not set.
     """
-    from eidolon.tools import whoxy as whoxy_tool
+    from eidolon.tools.whoxy import Whoxy, WhoxyInput
 
     primary = next((c for c in state.classifications if c.type == "email"), None)
     if not primary:
         logger.info("whoxy_node: no email input, skipping")
         return state
 
-    result = whoxy_tool.run(primary.value)
+    result = run_to_result(Whoxy(), WhoxyInput(email=primary.value))
     if result.success:
         d = result.data
         logger.info(
@@ -628,8 +626,7 @@ def phone_pivot_node(state: PipelineState) -> PipelineState:
         logger.info("phone_pivot_node: no phone input, skipping")
         return state
 
-    inp = PhoneInput(phone=primary.value)
-    result = phone_tool.run(inp)
+    result = phone_tool.lookup(primary.value)
     if result.success:
         logger.info(
             "phone_pivot_node: OK — valid=%s line_type=%s carrier=%s location=%s",
@@ -657,7 +654,7 @@ def public_records_node(state: PipelineState) -> PipelineState:
         logger.info("public_records_node: no name resolved, skipping")
         return state
 
-    result = pr_tool.run(name, state=state.location_state)
+    result = pr_tool.lookup(name, state=state.location_state)
     if result.success:
         logger.info(
             "public_records_node: OK — court_cases=%d corporate_records=%d",
@@ -1354,41 +1351,38 @@ def correlation_execute_node(state: PipelineState) -> PipelineState:
 
         try:
             if ptype == "username":
-                from eidolon.tools import maigret as maigret_tool
-                from eidolon.tools.maigret import MaigretInput
+                from eidolon.tools.maigret import Maigret, MaigretInput
 
-                result = maigret_tool.run(MaigretInput(username=pvalue))
+                result = run_to_result(Maigret(), MaigretInput(username=pvalue))
                 results.append(result)
 
             elif ptype == "name":
                 from eidolon.tools import public_records as pr_tool
 
-                result = pr_tool.run(pvalue, state=state.location_state)
+                result = pr_tool.lookup(pvalue, state=state.location_state)
                 results.append(result)
 
             elif ptype == "ip":
-                from eidolon.tools import shodan as shodan_tool
-                from eidolon.tools.shodan import ShodanInput
+                from eidolon.tools.shodan import Shodan, ShodanInput
 
-                result = shodan_tool.run(ShodanInput(ip=pvalue))
+                result = run_to_result(Shodan(), ShodanInput(ip=pvalue))
                 results.append(result)
 
             elif ptype == "phone":
                 from eidolon.tools import phone as phone_tool
-                from eidolon.tools.phone import PhoneInput
 
-                result = phone_tool.run(PhoneInput(phone=pvalue))
+                result = phone_tool.lookup(pvalue)
                 results.append(result)
 
             elif ptype == "email":
-                from eidolon.tools import hibp as hibp_tool
-                from eidolon.tools import holehe as holehe_tool
-                from eidolon.tools.hibp import HibpInput
-                from eidolon.tools.holehe import HoleheInput
+                from eidolon.tools.hibp import Hibp, HibpInput
+                from eidolon.tools.holehe import Holehe, HoleheInput
 
-                hibp_result = hibp_tool.run(HibpInput(input_type="email", value=pvalue))
+                hibp_result = run_to_result(
+                    Hibp(), HibpInput(input_type="email", value=pvalue)
+                )
                 results.append(hibp_result)
-                holehe_result = holehe_tool.run(HoleheInput(email=pvalue))
+                holehe_result = run_to_result(Holehe(), HoleheInput(email=pvalue))
                 results.append(holehe_result)
 
             else:

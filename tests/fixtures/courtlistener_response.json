@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "case_name": "Doe v. Acme Corp",
+      "docket_number": "1:23-cv-00123",
+      "court": "U.S. District Court, S.D.N.Y.",
+      "date_filed": "2023-03-15",
+      "date_terminated": null,
+      "nature_of_suit": "Employment",
+      "cause": "42 U.S.C. \u00a7 1983",
+      "source_url": "https://www.courtlistener.com/docket/12345/"
+    }
+  ],
+  "count": 1
+}

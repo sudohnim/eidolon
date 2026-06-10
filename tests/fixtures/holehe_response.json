@@ -1,29 +1,21 @@
 {
-  "success": true,
-  "tool": "holehe",
-  "input_type": "email",
-  "input_value": "test@example.com",
-  "timestamp": "2026-01-01T00:00:00Z",
-  "data": {
-    "email": "test@example.com",
-    "platforms_checked": 121,
-    "platforms_found": [
-      {
-        "platform": "twitter",
-        "exists": true,
-        "email_recovery": "te**@example.com",
-        "phone_number": null,
-        "rate_limited": false
-      },
-      {
-        "platform": "github",
-        "exists": true,
-        "email_recovery": null,
-        "phone_number": null,
-        "rate_limited": false
-      }
-    ],
-    "found_count": 2
-  },
-  "error": null
+  "email": "test@example.com",
+  "platforms_checked": 121,
+  "platforms_found": [
+    {
+      "platform": "twitter",
+      "exists": true,
+      "email_recovery": "te**@example.com",
+      "phone_number": null,
+      "rate_limited": false
+    },
+    {
+      "platform": "github",
+      "exists": true,
+      "email_recovery": null,
+      "phone_number": null,
+      "rate_limited": false
+    }
+  ],
+  "found_count": 2
 }

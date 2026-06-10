@@ -1,13 +1,11 @@
-import json
 import logging
-from datetime import datetime, timezone
-from pathlib import Path
 
 import requests
+import structlog
 from pydantic import BaseModel
 
 from eidolon import config
-from eidolon.core.models import ToolResult
+from eidolon.tools.base import Tool
 
 
 class ShodanInput(BaseModel):
@@ -27,24 +25,16 @@ class ShodanHostResult(BaseModel):
 
 
 class ShodanOutput(BaseModel):
-    ips_checked: int
-    hosts: list[ShodanHostResult]
-    total_open_ports: int
-    total_vulns: int
-    high_risk_ips: list[str]
+    ips_checked: int = 0
+    hosts: list[ShodanHostResult] = []
+    total_open_ports: int = 0
+    total_vulns: int = 0
+    high_risk_ips: list[str] = []
 
 
 logger = logging.getLogger(__name__)
 
-FIXTURE_PATH = (
-    Path(__file__).parent.parent.parent / "tests" / "fixtures" / "shodan_response.json"
-)
 INTERNETDB_URL = "https://internetdb.shodan.io/{ip}"
-
-
-def _load_fixture() -> ToolResult:
-    raw = json.loads(FIXTURE_PATH.read_text())
-    return ToolResult(**raw)
 
 
 def _query_internetdb(ip: str) -> dict | None:
@@ -134,49 +124,22 @@ def _build_host_result(ip: str) -> ShodanHostResult | None:
     )
 
 
-def run(inp: ShodanInput) -> ToolResult:
-    logger.info("shodan: scanning ip=%s", inp.ip)
+class Shodan(Tool[ShodanInput, ShodanOutput]):
+    name = "shodan"
+    input_type = "org"
+    input_schema = ShodanInput
+    output_schema = ShodanOutput
 
-    if config.is_test_mode():
-        return _load_fixture()
+    def _input_value(self, inp: ShodanInput) -> str:
+        return inp.ip
 
-    try:
+    def _run(self, inp: ShodanInput, log: structlog.stdlib.BoundLogger) -> ShodanOutput:
         host = _build_host_result(inp.ip)
-
-        hosts: list[ShodanHostResult] = []
-        if host is not None:
-            hosts.append(host)
-
-        ips_checked = 1
-        total_open_ports = sum(len(h.ports) for h in hosts)
-        total_vulns = sum(len(h.vulns) for h in hosts)
-        high_risk_ips = [h.ip for h in hosts if h.vulns]
-
-        output = ShodanOutput(
-            ips_checked=ips_checked,
+        hosts = [host] if host is not None else []
+        return ShodanOutput(
+            ips_checked=1,
             hosts=hosts,
-            total_open_ports=total_open_ports,
-            total_vulns=total_vulns,
-            high_risk_ips=high_risk_ips,
-        )
-
-        return ToolResult(
-            success=True,
-            tool="shodan",
-            input_type="org",
-            input_value=inp.ip,
-            timestamp=datetime.now(timezone.utc),
-            data=output.model_dump(),
-        )
-
-    except Exception as exc:
-        logger.error("shodan: FAILED — %s", exc, exc_info=True)
-        return ToolResult(
-            success=False,
-            tool="shodan",
-            input_type="org",
-            input_value=inp.ip,
-            timestamp=datetime.now(timezone.utc),
-            data={},
-            error=f"shodan error: {exc}",
+            total_open_ports=sum(len(h.ports) for h in hosts),
+            total_vulns=sum(len(h.vulns) for h in hosts),
+            high_risk_ips=[h.ip for h in hosts if h.vulns],
         )

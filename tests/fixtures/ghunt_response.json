@@ -1,18 +1,14 @@
 {
-  "success": true,
-  "tool": "ghunt",
-  "input_type": "email",
-  "input_value": "test@gmail.com",
-  "timestamp": "2026-01-01T00:00:00Z",
-  "data": {
-    "email": "test@gmail.com",
-    "found": true,
-    "name": "Test User",
-    "profile_photo_url": "https://lh3.googleusercontent.com/a/example",
-    "google_services": ["YouTube", "Maps", "Photos"],
-    "maps_reviews_count": 12,
-    "youtube_channel": "https://www.youtube.com/channel/example",
-    "raw": {}
-  },
-  "error": null
+  "email": "test@gmail.com",
+  "found": true,
+  "name": "Test User",
+  "profile_photo_url": "https://lh3.googleusercontent.com/a/example",
+  "google_services": [
+    "YouTube",
+    "Maps",
+    "Photos"
+  ],
+  "maps_reviews_count": 12,
+  "youtube_channel": "https://www.youtube.com/channel/example",
+  "raw": {}
 }

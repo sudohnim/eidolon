@@ -20,7 +20,7 @@ import structlog
 from pydantic import BaseModel
 
 from eidolon import config
-from eidolon.core.tool import BaseTool
+from eidolon.tools.base import Tool
 
 
 class DehashedInput(BaseModel):
@@ -40,7 +40,7 @@ class DehashedEntry(BaseModel):
 
 
 class DehashedOutput(BaseModel):
-    query: str
+    query: str = ""
     total: int = 0  # total hits reported by API
     entries: list[DehashedEntry] = []  # up to 50 records returned
 
@@ -76,19 +76,22 @@ def _hash_type(h: str) -> str:
     return "unknown"
 
 
-class DehashedTool(BaseTool[DehashedInput]):
+class Dehashed(Tool[DehashedInput, DehashedOutput]):
     name = "dehashed"
-    input_type = "email"
+    input_schema = DehashedInput
+    output_schema = DehashedOutput
+
+    def available(self) -> bool:
+        return bool(config.get("DEHASHED_API_KEY"))
 
     def _input_value(self, inp: DehashedInput) -> str:
         return inp.email
 
-    def _execute(self, inp: DehashedInput, log: structlog.stdlib.BoundLogger) -> dict:
+    def _run(
+        self, inp: DehashedInput, log: structlog.stdlib.BoundLogger
+    ) -> DehashedOutput:
         email = inp.email
         dh_key = config.get("DEHASHED_API_KEY")
-        if not dh_key:
-            log.info("skipped — DEHASHED_API_KEY not set")
-            return DehashedOutput(query=email).model_dump()
 
         # v2 API: POST with JSON body, API key in header.
         resp = requests.post(
@@ -162,7 +165,4 @@ class DehashedTool(BaseTool[DehashedInput]):
             addresses=len(output.unique_addresses),
             usernames=len(output.unique_usernames),
         )
-        return output.model_dump()
-
-
-run = DehashedTool().run
+        return output

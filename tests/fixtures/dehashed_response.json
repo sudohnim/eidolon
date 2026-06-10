@@ -1,63 +1,68 @@
 {
-  "success": true,
-  "tool": "dehashed",
-  "input_type": "email",
-  "input_value": "testuser@example.com",
-  "timestamp": "2026-06-08T00:00:00Z",
-  "data": {
-    "query": "testuser@example.com",
-    "total": 4,
-    "entries": [
-      {
-        "database_name": "LinkedIn",
-        "email": "testuser@example.com",
-        "username": "testuser",
-        "password": "",
-        "hashed_password": "5f4dcc3b5aa765d61d8327deb882cf99",
-        "ip_address": "",
-        "phone": "",
-        "name": "Test User",
-        "address": ""
-      },
-      {
-        "database_name": "Adobe",
-        "email": "testuser@example.com",
-        "username": "testuser",
-        "password": "",
-        "hashed_password": "7c4a8d09ca3762af61e59520943dc26494f8941b",
-        "ip_address": "",
-        "phone": "",
-        "name": "",
-        "address": ""
-      },
-      {
-        "database_name": "EatStreet",
-        "email": "testuser@example.com",
-        "username": "",
-        "password": "hunter2",
-        "hashed_password": "",
-        "ip_address": "192.0.2.1",
-        "phone": "+14155551234",
-        "name": "Test User",
-        "address": "123 Main St, San Francisco CA 94102"
-      },
-      {
-        "database_name": "Apollo",
-        "email": "testuser@example.com",
-        "username": "t.user",
-        "password": "",
-        "hashed_password": "",
-        "ip_address": "",
-        "phone": "",
-        "name": "Test User",
-        "address": ""
-      }
-    ],
-    "plaintext_password_count": 1,
-    "hashed_password_count": 2,
-    "unique_usernames": ["testuser", "t.user"],
-    "unique_addresses": ["123 Main St, San Francisco CA 94102"],
-    "unique_phones": ["+14155551234"],
-    "unique_databases": ["LinkedIn", "Adobe", "EatStreet", "Apollo"]
-  }
+  "query": "testuser@example.com",
+  "total": 4,
+  "entries": [
+    {
+      "database_name": "LinkedIn",
+      "email": "testuser@example.com",
+      "username": "testuser",
+      "password": "",
+      "hashed_password": "5f4dcc3b5aa765d61d8327deb882cf99",
+      "ip_address": "",
+      "phone": "",
+      "name": "Test User",
+      "address": ""
+    },
+    {
+      "database_name": "Adobe",
+      "email": "testuser@example.com",
+      "username": "testuser",
+      "password": "",
+      "hashed_password": "7c4a8d09ca3762af61e59520943dc26494f8941b",
+      "ip_address": "",
+      "phone": "",
+      "name": "",
+      "address": ""
+    },
+    {
+      "database_name": "EatStreet",
+      "email": "testuser@example.com",
+      "username": "",
+      "password": "hunter2",
+      "hashed_password": "",
+      "ip_address": "192.0.2.1",
+      "phone": "+14155551234",
+      "name": "Test User",
+      "address": "123 Main St, San Francisco CA 94102"
+    },
+    {
+      "database_name": "Apollo",
+      "email": "testuser@example.com",
+      "username": "t.user",
+      "password": "",
+      "hashed_password": "",
+      "ip_address": "",
+      "phone": "",
+      "name": "Test User",
+      "address": ""
+    }
+  ],
+  "plaintext_password_count": 1,
+  "hashed_password_count": 2,
+  "unique_usernames": [
+    "testuser",
+    "t.user"
+  ],
+  "unique_addresses": [
+    "123 Main St, San Francisco CA 94102"
+  ],
+  "unique_phones": [
+    "+14155551234"
+  ],
+  "unique_databases": [
+    "LinkedIn",
+    "Adobe",
+    "EatStreet",
+    "Apollo"
+  ]
 }

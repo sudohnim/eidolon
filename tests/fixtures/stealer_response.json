@@ -1,36 +1,31 @@
 {
-  "success": true,
-  "tool": "stealer",
-  "input_type": "email",
-  "input_value": "test@example.com",
-  "timestamp": "2026-01-01T00:00:00Z",
-  "data": {
-    "query_email": "test@example.com",
-    "found": true,
-    "stealer_count": 2,
-    "malware_families": ["RedLine", "Vidar"],
-    "earliest_compromise": "2023-08-14",
-    "latest_compromise": "2024-11-02",
-    "logs": [
-      {
-        "computer_name": "DESKTOP-A1B2C3",
-        "operating_system": "Windows 10 Pro",
-        "ip": "98.123.***.***",
-        "date_compromised": "2024-11-02",
-        "malware_family": "RedLine",
-        "credential_count": 147,
-        "application_count": 32
-      },
-      {
-        "computer_name": "LAPTOP-D4E5F6",
-        "operating_system": "Windows 11 Home",
-        "ip": "72.45.***.***",
-        "date_compromised": "2023-08-14",
-        "malware_family": "Vidar",
-        "credential_count": 83,
-        "application_count": 21
-      }
-    ]
-  },
-  "error": null
+  "query_email": "test@example.com",
+  "found": true,
+  "stealer_count": 2,
+  "malware_families": [
+    "RedLine",
+    "Vidar"
+  ],
+  "earliest_compromise": "2023-08-14",
+  "latest_compromise": "2024-11-02",
+  "logs": [
+    {
+      "computer_name": "DESKTOP-A1B2C3",
+      "operating_system": "Windows 10 Pro",
+      "ip": "98.123.***.***",
+      "date_compromised": "2024-11-02",
+      "malware_family": "RedLine",
+      "credential_count": 147,
+      "application_count": 32
+    },
+    {
+      "computer_name": "LAPTOP-D4E5F6",
+      "operating_system": "Windows 11 Home",
+      "ip": "72.45.***.***",
+      "date_compromised": "2023-08-14",
+      "malware_family": "Vidar",
+      "credential_count": 83,
+      "application_count": 21
+    }
+  ]
 }

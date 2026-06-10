@@ -15,17 +15,19 @@ lines) is not possible here. What we get: which paste services the email
 appeared in, when, and approximately how many addresses were in each paste.
 """
 
-import json
-import logging
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 
 import requests
+import structlog
 from pydantic import BaseModel
 
 from eidolon import config
-from eidolon.core.models import ToolResult
+from eidolon.tools.base import Tool
+
+
+class PasteInput(BaseModel):
+    email: str
 
 
 class PasteEntry(BaseModel):
@@ -50,21 +52,10 @@ class PasteOutput(BaseModel):
     plaintext_passwords_found: int = 0
 
 
-logger = logging.getLogger(__name__)
-
-FIXTURE_PATH = (
-    Path(__file__).parent.parent.parent / "tests" / "fixtures" / "paste_response.json"
-)
-
 HIBP_PASTE_URL = "https://haveibeenpwned.com/api/v3/pasteaccount/{email}"
 
 _RECENT_DAYS = 90
 _MAX_RETRIES = 3
-
-
-def _load_fixture() -> ToolResult:
-    raw = json.loads(FIXTURE_PATH.read_text())
-    return ToolResult(**raw)
 
 
 def _is_recent(date_str: str) -> bool:
@@ -99,34 +90,29 @@ def _truncate_password(pw: str) -> str:
     return pw[:4] + "****"
 
 
-def run(email: str) -> ToolResult:
-    logger.info("paste: querying HIBP paste endpoint for email=%s", email)
+class Paste(Tool[PasteInput, PasteOutput]):
+    name = "paste"
+    input_schema = PasteInput
+    output_schema = PasteOutput
 
-    if config.is_test_mode():
-        return _load_fixture()
+    def _input_value(self, inp: PasteInput) -> str:
+        return inp.email
 
-    api_key = config.get("HIBP_API_KEY")
-    headers = {
-        "hibp-api-key": api_key,
-        "user-agent": "osint-agent/1.0",
-    }
+    def _run(self, inp: PasteInput, log: structlog.stdlib.BoundLogger) -> PasteOutput:
+        email = inp.email
+        headers = {
+            "hibp-api-key": config.get("HIBP_API_KEY"),
+            "user-agent": "osint-agent/1.0",
+        }
 
-    try:
         resp = None
         for attempt in range(1, _MAX_RETRIES + 1):
             resp = requests.get(
-                HIBP_PASTE_URL.format(email=email),
-                headers=headers,
-                timeout=15,
+                HIBP_PASTE_URL.format(email=email), headers=headers, timeout=15
             )
             if resp.status_code == 429:
                 retry_after = int(resp.headers.get("retry-after", 2))
-                logger.info(
-                    "paste: HIBP rate-limited, waiting %ds (attempt %d/%d)",
-                    retry_after,
-                    attempt,
-                    _MAX_RETRIES,
-                )
+                log.info("rate-limited", wait=retry_after, attempt=attempt)
                 time.sleep(retry_after + 0.5)
                 continue
             break
@@ -136,79 +122,39 @@ def run(email: str) -> ToolResult:
 
         if resp.status_code == 404:
             # 404 means no pastes found — not an error
-            logger.info("paste: no paste records found for %s", email)
-            output = PasteOutput(query_email=email, paste_count=0)
-            return ToolResult(
-                success=True,
-                tool="paste",
-                input_type="email",
-                input_value=email,
-                timestamp=datetime.now(timezone.utc),
-                data=output.model_dump(),
-            )
+            return PasteOutput(query_email=email, paste_count=0)
 
         resp.raise_for_status()
         raw_pastes = resp.json() or []
 
         entries: list[PasteEntry] = []
         recent_count = 0
-
         for item in raw_pastes:
             source = item.get("Source", "")
             paste_id = item.get("Id", "")
             date_str = item.get("Date") or ""
             email_count = item.get("EmailCount", 0)
-
-            # Normalise date — HIBP returns ISO 8601
             date_short = date_str[:10] if date_str else ""
             if _is_recent(date_str):
                 recent_count += 1
-
             entries.append(
                 PasteEntry(
                     paste_id=paste_id,
                     url=_paste_url(source, paste_id),
                     date=date_short,
-                    # email_count is the closest proxy HIBP gives us — how many
-                    # addresses were in the paste (not the same as credential lines,
-                    # but useful for sizing the exposure)
+                    # email_count = how many addresses were in the paste (proxy)
                     credential_count=email_count,
                     has_plaintext_password=False,  # HIBP doesn't expose paste content
                     password_samples=[],
                 )
             )
 
-        output = PasteOutput(
+        log.info("ok", pastes=len(entries), recent=recent_count)
+        return PasteOutput(
             query_email=email,
             paste_count=len(entries),
             credential_paste_count=0,  # can't determine without paste content
             recent_paste_count=recent_count,
             pastes=entries,
             plaintext_passwords_found=0,
-        )
-
-        logger.info(
-            "paste: OK — pastes=%d recent=%d",
-            len(entries),
-            recent_count,
-        )
-        return ToolResult(
-            success=True,
-            tool="paste",
-            input_type="email",
-            input_value=email,
-            timestamp=datetime.now(timezone.utc),
-            data=output.model_dump(),
-        )
-
-    except Exception as exc:
-        logger.warning("paste: FAILED — %s", exc)
-        return ToolResult(
-            success=False,
-            tool="paste",
-            input_type="email",
-            input_value=email,
-            timestamp=datetime.now(timezone.utc),
-            data={},
-            error=f"paste error: {exc}",
         )

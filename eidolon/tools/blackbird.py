@@ -1,15 +1,13 @@
 import glob
 import json
-import logging
 import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
+import structlog
 from pydantic import BaseModel
 
-from eidolon import config
-from eidolon.core.models import ToolResult
+from eidolon.tools.base import Tool
 
 
 class BlackbirdInput(BaseModel):
@@ -24,20 +22,12 @@ class BlackbirdAccount(BaseModel):
 
 
 class BlackbirdOutput(BaseModel):
-    email: str
-    platforms_checked: int
-    accounts_found: list[BlackbirdAccount]
-    found_count: int
+    email: str = ""
+    platforms_checked: int = 0
+    accounts_found: list[BlackbirdAccount] = []
+    found_count: int = 0
 
 
-logger = logging.getLogger(__name__)
-
-FIXTURE_PATH = (
-    Path(__file__).parent.parent.parent
-    / "tests"
-    / "fixtures"
-    / "blackbird_response.json"
-)
 BLACKBIRD_DIR = (
     Path("/opt/blackbird")
     if Path("/opt/blackbird").exists()
@@ -45,35 +35,23 @@ BLACKBIRD_DIR = (
 )
 
 
-def _load_fixture() -> ToolResult:
-    raw = json.loads(FIXTURE_PATH.read_text())
-    return ToolResult(**raw)
+class Blackbird(Tool[BlackbirdInput, BlackbirdOutput]):
+    name = "blackbird"
+    input_schema = BlackbirdInput
+    output_schema = BlackbirdOutput
 
+    def available(self) -> bool:
+        return BLACKBIRD_DIR.exists()
 
-def run(inp: BlackbirdInput) -> ToolResult:
-    logger.info("blackbird: searching email=%s", inp.email)
+    def _input_value(self, inp: BlackbirdInput) -> str:
+        return inp.email
 
-    if config.is_test_mode():
-        return _load_fixture()
-
-    if not BLACKBIRD_DIR.exists():
-        logger.warning("blackbird: vendor/blackbird not found, skipping")
-        output = BlackbirdOutput(
-            email=inp.email, platforms_checked=0, accounts_found=[], found_count=0
-        )
-        return ToolResult(
-            success=True,
-            tool="blackbird",
-            input_type="email",
-            input_value=inp.email,
-            timestamp=datetime.now(timezone.utc),
-            data=output.model_dump(),
-        )
-
-    try:
-        env = {"PYTHONPATH": str(BLACKBIRD_DIR / "src")}
+    def _run(
+        self, inp: BlackbirdInput, log: structlog.stdlib.BoundLogger
+    ) -> BlackbirdOutput:
         import os
 
+        env = {"PYTHONPATH": str(BLACKBIRD_DIR / "src")}
         env.update({k: v for k, v in os.environ.items() if k not in env})
 
         subprocess.run(
@@ -106,34 +84,11 @@ def run(inp: BlackbirdInput) -> ToolResult:
                             metadata=item.get("metadata") or [],
                         )
                     )
-        else:
-            # No file = no results found
-            logger.info("blackbird: no accounts found for %s", inp.email)
 
-        output = BlackbirdOutput(
+        log.info("ok", found=len(accounts))
+        return BlackbirdOutput(
             email=inp.email,
             platforms_checked=platforms_checked,
             accounts_found=accounts,
             found_count=len(accounts),
-        )
-        logger.info("blackbird: found %d accounts", len(accounts))
-        return ToolResult(
-            success=True,
-            tool="blackbird",
-            input_type="email",
-            input_value=inp.email,
-            timestamp=datetime.now(timezone.utc),
-            data=output.model_dump(),
-        )
-
-    except Exception as exc:
-        logger.error("blackbird: FAILED — %s", exc, exc_info=True)
-        return ToolResult(
-            success=False,
-            tool="blackbird",
-            input_type="email",
-            input_value=inp.email,
-            timestamp=datetime.now(timezone.utc),
-            data={},
-            error=f"blackbird error: {exc}",
         )
