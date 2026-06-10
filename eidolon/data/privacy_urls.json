@@ -1,0 +1,940 @@
+[
+  {
+    "names": [
+      "Facebook",
+      "Meta",
+      "Facebook/Meta"
+    ],
+    "domain": "facebook.com",
+    "display_name": "Facebook / Meta",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.facebook.com/help/delete_account",
+    "request_email": null,
+    "notes": "Submit CCPA data deletion or delete your account entirely via Settings > Account > Account Ownership and Control"
+  },
+  {
+    "names": [
+      "Instagram"
+    ],
+    "domain": "instagram.com",
+    "display_name": "Instagram",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.instagram.com/370452623275442",
+    "request_email": null,
+    "notes": "Delete account or submit CCPA data request via Instagram app Settings > Account > Delete Account"
+  },
+  {
+    "names": [
+      "Twitter",
+      "X",
+      "Twitter/X",
+      "X (Twitter)"
+    ],
+    "domain": "x.com",
+    "display_name": "Twitter / X",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.twitter.com/en/managing-your-account/how-to-deactivate-twitter-account",
+    "request_email": null,
+    "notes": "Deactivate account (data deleted after 30 days) or submit CCPA deletion at https://help.twitter.com/forms/privacy"
+  },
+  {
+    "names": [
+      "LinkedIn"
+    ],
+    "domain": "linkedin.com",
+    "display_name": "LinkedIn",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.linkedin.com/help/linkedin/answer/a1340440",
+    "request_email": null,
+    "notes": "Close account or submit CCPA deletion request. Also audit: phone number visibility, profile indexing by search engines (Settings > Visibility)"
+  },
+  {
+    "names": [
+      "Google",
+      "Gmail",
+      "YouTube"
+    ],
+    "domain": "google.com",
+    "display_name": "Google",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://myaccount.google.com/delete-services-or-account",
+    "request_email": null,
+    "notes": "Submit CCPA data deletion at https://support.google.com/accounts/troubleshooter/7668738 or use 'Results About You' tool to remove personal info from Search: https://myaccount.google.com/data-and-privacy"
+  },
+  {
+    "names": [
+      "Apple",
+      "iCloud"
+    ],
+    "domain": "apple.com",
+    "display_name": "Apple",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://privacy.apple.com",
+    "request_email": null,
+    "notes": "Manage and delete your data at privacy.apple.com \u2014 includes account deletion, data download, and CCPA deletion request"
+  },
+  {
+    "names": [
+      "Microsoft",
+      "Outlook",
+      "Hotmail",
+      "OneDrive",
+      "Xbox"
+    ],
+    "domain": "microsoft.com",
+    "display_name": "Microsoft",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://account.microsoft.com/privacy",
+    "request_email": null,
+    "notes": "Submit CCPA deletion request at https://account.microsoft.com/privacy or close account at https://account.microsoft.com/account/close"
+  },
+  {
+    "names": [
+      "Amazon",
+      "AWS",
+      "Alexa"
+    ],
+    "domain": "amazon.com",
+    "display_name": "Amazon",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.amazon.com/privacyprefs",
+    "request_email": null,
+    "notes": "Submit CCPA request at https://www.amazon.com/gp/help/customer/display.html?nodeId=GC5HB5DVMU5Y8CJ2 or close account at https://www.amazon.com/hz/mycd/myx#/home/account/close"
+  },
+  {
+    "names": [
+      "Spotify"
+    ],
+    "domain": "spotify.com",
+    "display_name": "Spotify",
+    "hq_country": "SE",
+    "framework": "gdpr",
+    "deletion_url": "https://support.spotify.com/article/gdpr-article-17/",
+    "request_email": "privacy@spotify.com",
+    "notes": "Swedish company \u2014 GDPR Article 17 erasure right applies globally. Submit via in-app Privacy Settings or email privacy@spotify.com"
+  },
+  {
+    "names": [
+      "TikTok",
+      "TikTok (ByteDance)"
+    ],
+    "domain": "tiktok.com",
+    "display_name": "TikTok",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://support.tiktok.com/en/account-and-privacy/deleting-an-account",
+    "request_email": null,
+    "notes": "Delete account via app Settings or submit CCPA request at https://www.tiktok.com/legal/privacy-policy-us (Privacy Settings > Download Your Data)"
+  },
+  {
+    "names": [
+      "Reddit"
+    ],
+    "domain": "reddit.com",
+    "display_name": "Reddit",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.reddit.com/settings/account",
+    "request_email": null,
+    "notes": "Delete account via Settings > Account > Delete Account. Submit CCPA data deletion at https://support.reddithelp.com/hc/en-us/requests/new (Privacy & Data category)"
+  },
+  {
+    "names": [
+      "Pinterest"
+    ],
+    "domain": "pinterest.com",
+    "display_name": "Pinterest",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.pinterest.com/en/article/deactivate-or-close-your-account",
+    "request_email": null,
+    "notes": "Close account via Settings > Account > Close account"
+  },
+  {
+    "names": [
+      "Snapchat"
+    ],
+    "domain": "snapchat.com",
+    "display_name": "Snapchat",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://accounts.snapchat.com/accounts/delete_account",
+    "request_email": null,
+    "notes": "Delete account at accounts.snapchat.com/accounts/delete_account. CCPA data request at https://help.snapchat.com/hc/en-us"
+  },
+  {
+    "names": [
+      "Betterment"
+    ],
+    "domain": "betterment.com",
+    "display_name": "Betterment",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.betterment.com/legal/privacy-policy",
+    "request_email": "privacy@betterment.com",
+    "notes": "Email privacy@betterment.com to exercise CCPA right to deletion. Note: cannot delete data required for regulatory compliance"
+  },
+  {
+    "names": [
+      "Robinhood"
+    ],
+    "domain": "robinhood.com",
+    "display_name": "Robinhood",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://robinhood.com/us/en/support/articles/ccpa-privacy-rights/",
+    "request_email": "dpo@robinhood.com",
+    "notes": "Submit CCPA deletion request at robinhood.com/us/en/support/articles/ccpa-privacy-rights/ or email dpo@robinhood.com"
+  },
+  {
+    "names": [
+      "Coinbase"
+    ],
+    "domain": "coinbase.com",
+    "display_name": "Coinbase",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.coinbase.com/en/coinbase/privacy-and-security/privacy/how-do-i-delete-my-coinbase-account",
+    "request_email": "privacy@coinbase.com",
+    "notes": "Close account and submit CCPA deletion request at help.coinbase.com. Regulated financial data retained per law"
+  },
+  {
+    "names": [
+      "PayPal"
+    ],
+    "domain": "paypal.com",
+    "display_name": "PayPal",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.paypal.com/us/legalhub/privacy-full",
+    "request_email": "dpo@paypal.com",
+    "notes": "Submit CCPA deletion request via https://www.paypal.com/us/cshelp/article/how-do-i-close-my-paypal-account-help246 or email dpo@paypal.com"
+  },
+  {
+    "names": [
+      "Venmo"
+    ],
+    "domain": "venmo.com",
+    "display_name": "Venmo",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.venmo.com/hc/en-us/articles/235432448",
+    "request_email": null,
+    "notes": "Close Venmo account via Settings > Close Venmo Account. Submit CCPA request to PayPal (Venmo's parent)"
+  },
+  {
+    "names": [
+      "Cash App",
+      "CashApp"
+    ],
+    "domain": "cash.app",
+    "display_name": "Cash App",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://cash.app/help/us/en-us/3073-close-account",
+    "request_email": null,
+    "notes": "Close account via Cash App Settings > Account > Close Cash App Account"
+  },
+  {
+    "names": [
+      "Dropbox"
+    ],
+    "domain": "dropbox.com",
+    "display_name": "Dropbox",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.dropbox.com/delete-restore/delete-account",
+    "request_email": "privacy@dropbox.com",
+    "notes": "Delete account at help.dropbox.com/delete-restore/delete-account or email privacy@dropbox.com for CCPA data deletion"
+  },
+  {
+    "names": [
+      "Slack"
+    ],
+    "domain": "slack.com",
+    "display_name": "Slack",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://slack.com/intl/en-us/help/articles/203953226-Deactivate-your-Slack-account",
+    "request_email": "privacy@slack.com",
+    "notes": "Deactivate account via account settings. Submit CCPA request at https://slack.com/trust/compliance/ccpa-faq or email privacy@slack.com"
+  },
+  {
+    "names": [
+      "Uber"
+    ],
+    "domain": "uber.com",
+    "display_name": "Uber",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.uber.com/en/riders/article/how-do-i-delete-my-uber-account",
+    "request_email": null,
+    "notes": "Delete account via Uber app Settings > Privacy > Delete Account or submit CCPA request at https://privacy.uber.com/"
+  },
+  {
+    "names": [
+      "Lyft"
+    ],
+    "domain": "lyft.com",
+    "display_name": "Lyft",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.lyft.com/hc/en-us/articles/115012926967",
+    "request_email": null,
+    "notes": "Submit CCPA data deletion request at https://www.lyft.com/privacy/ccpa or delete account via Settings"
+  },
+  {
+    "names": [
+      "Airbnb"
+    ],
+    "domain": "airbnb.com",
+    "display_name": "Airbnb",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.airbnb.com/help/article/2260",
+    "request_email": null,
+    "notes": "Delete account via Account > Settings > Delete Account. Submit CCPA request at https://www.airbnb.com/help/article/2260"
+  },
+  {
+    "names": [
+      "DoorDash"
+    ],
+    "domain": "doordash.com",
+    "display_name": "DoorDash",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.doordash.com/consumers/s/article/how-do-i-delete-my-account",
+    "request_email": null,
+    "notes": "Delete account via DoorDash app Settings > Manage Account > Delete Account"
+  },
+  {
+    "names": [
+      "Netflix"
+    ],
+    "domain": "netflix.com",
+    "display_name": "Netflix",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.netflix.com/en/node/87564",
+    "request_email": null,
+    "notes": "Cancel and delete account at https://help.netflix.com/en/node/87564. Submit CCPA data request at https://www.netflix.com/account/getmyinfo"
+  },
+  {
+    "names": [
+      "Eventbrite"
+    ],
+    "domain": "eventbrite.com",
+    "display_name": "Eventbrite",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.eventbrite.com/account-settings/#basic_info",
+    "request_email": "privacy@eventbrite.com",
+    "notes": "Close account via Account Settings > Close Account. Submit CCPA request to privacy@eventbrite.com"
+  },
+  {
+    "names": [
+      "Replit"
+    ],
+    "domain": "replit.com",
+    "display_name": "Replit",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://docs.replit.com/teams-and-authors/deleting-your-account",
+    "request_email": "privacy@replit.com",
+    "notes": "Delete account via Account Settings > Delete Account or email privacy@replit.com for data deletion"
+  },
+  {
+    "names": [
+      "GitHub"
+    ],
+    "domain": "github.com",
+    "display_name": "GitHub",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-personal-account-on-github/managing-your-personal-account/deleting-your-personal-account",
+    "request_email": "privacy@github.com",
+    "notes": "Delete account via Settings > Account > Delete this account. Submit CCPA/data request to privacy@github.com"
+  },
+  {
+    "names": [
+      "Tinder"
+    ],
+    "domain": "tinder.com",
+    "display_name": "Tinder",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.help.tinder.com/hc/en-us/articles/115003462906",
+    "request_email": null,
+    "notes": "Delete account via Tinder app Settings > Delete Account. Submit CCPA request at https://www.tinder.com/app/profile#delete"
+  },
+  {
+    "names": [
+      "Bumble"
+    ],
+    "domain": "bumble.com",
+    "display_name": "Bumble",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://bumble.com/en/the-buzz/how-to-delete-bumble-account",
+    "request_email": "privacy@bumble.com",
+    "notes": "Delete account via Bumble app Settings > Delete Account or email privacy@bumble.com for CCPA data deletion"
+  },
+  {
+    "names": [
+      "OkCupid"
+    ],
+    "domain": "okcupid.com",
+    "display_name": "OkCupid",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.okcupid.com/faq/how-to-delete-account",
+    "request_email": "privacy@okcupid.com",
+    "notes": "Delete account via Account Settings. Email privacy@okcupid.com for CCPA data deletion request"
+  },
+  {
+    "names": [
+      "Hinge"
+    ],
+    "domain": "hinge.co",
+    "display_name": "Hinge",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://hingeapp.zendesk.com/hc/en-us/articles/360007906453",
+    "request_email": "privacy@hinge.co",
+    "notes": "Delete account via Hinge app Settings > Delete Account or email privacy@hinge.co for CCPA data deletion"
+  },
+  {
+    "names": [
+      "Match",
+      "Match.com"
+    ],
+    "domain": "match.com",
+    "display_name": "Match.com",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.help.match.com/hc/en-us/articles/6197029836443",
+    "request_email": "privacy@match.com",
+    "notes": "Delete account via Account Settings > Close Account. Email privacy@match.com for CCPA data deletion"
+  },
+  {
+    "names": [
+      "Steam",
+      "Steam (Valve)"
+    ],
+    "domain": "store.steampowered.com",
+    "display_name": "Steam",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.steampowered.com/en/faqs/view/0F98-EF47-A21B-D9C0",
+    "request_email": null,
+    "notes": "Delete account via Steam Support. Submit CCPA data deletion request at https://store.steampowered.com/privacy_agreement/"
+  },
+  {
+    "names": [
+      "Epic Games",
+      "Epic"
+    ],
+    "domain": "epicgames.com",
+    "display_name": "Epic Games",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.epicgames.com/help/en-US/epic-accounts-c74/general-support-c79/how-do-i-delete-my-epic-games-account-a2785",
+    "request_email": "privacy@epicgames.com",
+    "notes": "Delete account via Epic Games account settings or email privacy@epicgames.com for CCPA deletion"
+  },
+  {
+    "names": [
+      "Twitch"
+    ],
+    "domain": "twitch.tv",
+    "display_name": "Twitch",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.twitch.tv/s/article/deleting-your-account",
+    "request_email": null,
+    "notes": "Disable account via Settings > Security and Privacy. Full deletion via https://www.twitch.tv/user/delete_account"
+  },
+  {
+    "names": [
+      "Discord"
+    ],
+    "domain": "discord.com",
+    "display_name": "Discord",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://support.discord.com/hc/en-us/articles/212500837-How-do-I-permanently-delete-my-account-",
+    "request_email": "privacy@discord.com",
+    "notes": "Delete account via User Settings > My Account > Delete Account. Email privacy@discord.com for CCPA data deletion"
+  },
+  {
+    "names": [
+      "Acxiom"
+    ],
+    "domain": "acxiom.com",
+    "display_name": "Acxiom",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://isapps.acxiom.com/optout/optout.aspx",
+    "request_email": null,
+    "notes": "Major marketing data broker \u2014 opt out at isapps.acxiom.com/optout/optout.aspx. Also submit data access/deletion request at https://www.acxiom.com/about-acxiom/privacy/us-products-privacy-policy/"
+  },
+  {
+    "names": [
+      "Epsilon",
+      "Epsilon Data Management"
+    ],
+    "domain": "epsilon.com",
+    "display_name": "Epsilon",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://us.epsilon.com/privacy/consumer-choice-portal",
+    "request_email": null,
+    "notes": "Major marketing data broker. Opt out at us.epsilon.com/privacy/consumer-choice-portal"
+  },
+  {
+    "names": [
+      "LexisNexis",
+      "LexisNexis Risk Solutions"
+    ],
+    "domain": "lexisnexis.com",
+    "display_name": "LexisNexis Risk Solutions",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://optout.lexisnexis.com/",
+    "request_email": null,
+    "notes": "Background check and identity data aggregator. Opt out at optout.lexisnexis.com. Also freeze your LexisNexis report to prevent unauthorized background checks"
+  },
+  {
+    "names": [
+      "Spokeo"
+    ],
+    "domain": "spokeo.com",
+    "display_name": "Spokeo",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://www.spokeo.com/optout",
+    "request_email": null,
+    "notes": "People-search broker. Opt out at spokeo.com/optout \u2014 requires email verification. EasyOptOuts covers Spokeo."
+  },
+  {
+    "names": [
+      "Whitepages"
+    ],
+    "domain": "whitepages.com",
+    "display_name": "Whitepages",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://www.whitepages.com/suppression-requests",
+    "request_email": null,
+    "notes": "People-search broker. Opt out at whitepages.com/suppression-requests. EasyOptOuts covers Whitepages."
+  },
+  {
+    "names": [
+      "BeenVerified",
+      "Been Verified"
+    ],
+    "domain": "beenverified.com",
+    "display_name": "BeenVerified",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://www.beenverified.com/faq/opt-out/",
+    "request_email": null,
+    "notes": "People-search broker. Opt out at beenverified.com/faq/opt-out. EasyOptOuts covers BeenVerified."
+  },
+  {
+    "names": [
+      "Intelius"
+    ],
+    "domain": "intelius.com",
+    "display_name": "Intelius",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://www.intelius.com/opt-out",
+    "request_email": null,
+    "notes": "People-search broker. Opt out at intelius.com/opt-out"
+  },
+  {
+    "names": [
+      "TruthFinder"
+    ],
+    "domain": "truthfinder.com",
+    "display_name": "TruthFinder",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://www.truthfinder.com/opt-out/",
+    "request_email": null,
+    "notes": "People-search broker. Opt out at truthfinder.com/opt-out"
+  },
+  {
+    "names": [
+      "Radaris"
+    ],
+    "domain": "radaris.com",
+    "display_name": "Radaris",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://radaris.com/page/how-to-remove",
+    "request_email": null,
+    "notes": "People-search broker. Opt out at radaris.com/page/how-to-remove \u2014 requires account creation"
+  },
+  {
+    "names": [
+      "FastPeopleSearch",
+      "Fast People Search"
+    ],
+    "domain": "fastpeoplesearch.com",
+    "display_name": "FastPeopleSearch",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://www.fastpeoplesearch.com/removal",
+    "request_email": null,
+    "notes": "People-search broker. Opt out at fastpeoplesearch.com/removal"
+  },
+  {
+    "names": [
+      "TruePeopleSearch",
+      "True People Search"
+    ],
+    "domain": "truepeoplesearch.com",
+    "display_name": "TruePeopleSearch",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://www.truepeoplesearch.com/removal",
+    "request_email": null,
+    "notes": "People-search broker. Opt out at truepeoplesearch.com/removal \u2014 immediate free removal"
+  },
+  {
+    "names": [
+      "PeopleFinders",
+      "People Finders"
+    ],
+    "domain": "peoplefinders.com",
+    "display_name": "PeopleFinders",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://www.peoplefinders.com/opt-out",
+    "request_email": null,
+    "notes": "People-search broker. Opt out at peoplefinders.com/opt-out"
+  },
+  {
+    "names": [
+      "Instant Checkmate"
+    ],
+    "domain": "instantcheckmate.com",
+    "display_name": "Instant Checkmate",
+    "hq_country": "US",
+    "framework": "optout",
+    "deletion_url": "https://www.instantcheckmate.com/opt-out/",
+    "request_email": null,
+    "notes": "People-search broker. Opt out at instantcheckmate.com/opt-out"
+  },
+  {
+    "names": [
+      "Adobe"
+    ],
+    "domain": "adobe.com",
+    "display_name": "Adobe",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.adobe.com/privacy/privacy-contact.html",
+    "request_email": "privacy@adobe.com",
+    "notes": "Submit CCPA data deletion request at adobe.com/privacy/privacy-contact.html or email privacy@adobe.com. Adobe 2013 breach data is in archives \u2014 deletion request targets active account data only"
+  },
+  {
+    "names": [
+      "LinkedIn Breach",
+      "LinkedIn (2016 breach)"
+    ],
+    "domain": "linkedin.com",
+    "display_name": "LinkedIn (2016 breach archive)",
+    "hq_country": "US",
+    "framework": "none",
+    "deletion_url": null,
+    "request_email": null,
+    "notes": "Breach archives are held by third parties and cannot be removed. Monitor via HIBP. Change LinkedIn password and enable 2FA."
+  },
+  {
+    "names": [
+      "HaveIBeenPwned",
+      "HIBP",
+      "Have I Been Pwned"
+    ],
+    "domain": "haveibeenpwned.com",
+    "display_name": "Have I Been Pwned",
+    "hq_country": "AU",
+    "framework": "none",
+    "deletion_url": null,
+    "request_email": null,
+    "notes": "HIBP is a notification service, not a data broker. The underlying breach data is held by attackers. No removal possible. Set up free email monitoring at haveibeenpwned.com."
+  },
+  {
+    "names": [
+      "Plaid"
+    ],
+    "domain": "plaid.com",
+    "display_name": "Plaid",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://plaid.com/legal/end-user-privacy-policy/",
+    "request_email": "privacy@plaid.com",
+    "notes": "Financial data connector. Submit CCPA deletion at my.plaid.com/privacy or email privacy@plaid.com \u2014 this disconnects your bank data from all linked apps"
+  },
+  {
+    "names": [
+      "Acorns"
+    ],
+    "domain": "acorns.com",
+    "display_name": "Acorns",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://help.acorns.com/s/article/How-do-I-close-my-Acorns-account",
+    "request_email": "privacy@acorns.com",
+    "notes": "Close account via Acorns app Settings > Account Information > Close Account or email privacy@acorns.com for CCPA deletion"
+  },
+  {
+    "names": [
+      "WordPress",
+      "WordPress.com"
+    ],
+    "domain": "wordpress.com",
+    "display_name": "WordPress.com",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://en.support.wordpress.com/close-account/",
+    "request_email": "privacy@automattic.com",
+    "notes": "Close account at en.support.wordpress.com/close-account/ or email privacy@automattic.com for CCPA data deletion"
+  },
+  {
+    "names": [
+      "Gravatar"
+    ],
+    "domain": "gravatar.com",
+    "display_name": "Gravatar",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://en.gravatar.com/support/deleting-your-account/",
+    "request_email": "privacy@automattic.com",
+    "notes": "Gravatar profiles are publicly indexed. Delete account at Gravatar settings. Email privacy@automattic.com for CCPA deletion"
+  },
+  {
+    "names": [
+      "Equifax"
+    ],
+    "domain": "equifax.com",
+    "display_name": "Equifax (credit bureau)",
+    "hq_country": "US",
+    "framework": "none",
+    "deletion_url": null,
+    "request_email": null,
+    "notes": "Credit bureau \u2014 cannot delete credit history. Freeze your credit at equifax.com/personal/credit-report-services/credit-freeze/ to prevent unauthorized access"
+  },
+  {
+    "names": [
+      "Experian"
+    ],
+    "domain": "experian.com",
+    "display_name": "Experian (credit bureau)",
+    "hq_country": "US",
+    "framework": "none",
+    "deletion_url": null,
+    "request_email": null,
+    "notes": "Credit bureau \u2014 cannot delete credit history. Freeze your credit at experian.com/freeze/center.html to prevent unauthorized access"
+  },
+  {
+    "names": [
+      "TransUnion"
+    ],
+    "domain": "transunion.com",
+    "display_name": "TransUnion (credit bureau)",
+    "hq_country": "US",
+    "framework": "none",
+    "deletion_url": null,
+    "request_email": null,
+    "notes": "Credit bureau \u2014 cannot delete credit history. Freeze your credit at transunion.com/credit-freeze to prevent unauthorized access"
+  },
+  {
+    "names": [
+      "MyFitnessPal",
+      "My Fitness Pal"
+    ],
+    "domain": "myfitnesspal.com",
+    "display_name": "MyFitnessPal",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://support.myfitnesspal.com/hc/en-us/articles/360032273352",
+    "request_email": "privacy@myfitnesspal.com",
+    "notes": "Submit CCPA data deletion request at support.myfitnesspal.com or email privacy@myfitnesspal.com. The 2018 breach data (email, IP, password hash) is in third-party archives and cannot be removed \u2014 this request covers your active account data only."
+  },
+  {
+    "names": [
+      "Chegg"
+    ],
+    "domain": "chegg.com",
+    "display_name": "Chegg",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.chegg.com/privacy/ccpa",
+    "request_email": "privacy@chegg.com",
+    "notes": "Submit CCPA deletion request at chegg.com/privacy/ccpa. The 2018 breach exposed names, addresses, phone numbers \u2014 this deletion request applies to your active account data."
+  },
+  {
+    "names": [
+      "HotTopic",
+      "Hot Topic"
+    ],
+    "domain": "hottopic.com",
+    "display_name": "Hot Topic",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.hottopic.com/custserv/custserv.jsp?pageName=PrivacyPolicy",
+    "request_email": "privacy@hottopic.com",
+    "notes": "Submit CCPA deletion request by emailing privacy@hottopic.com. The 2024 breach exposed partial credit card data, DOB, and phone \u2014 contact them to request deletion of all stored data."
+  },
+  {
+    "names": [
+      "Under Armour",
+      "UnderArmour"
+    ],
+    "domain": "underarmour.com",
+    "display_name": "Under Armour",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://privacy.underarmour.com/s/",
+    "request_email": null,
+    "notes": "Submit CCPA deletion request at privacy.underarmour.com \u2014 covers MyFitnessPal and MapMyRun data (all Under Armour brands)."
+  },
+  {
+    "names": [
+      "Luxottica",
+      "LensCrafters",
+      "Ray-Ban"
+    ],
+    "domain": "luxottica.com",
+    "display_name": "Luxottica",
+    "hq_country": "IT",
+    "framework": "gdpr",
+    "deletion_url": "https://www.luxottica.com/en/privacy-policy",
+    "request_email": "privacy@luxottica.com",
+    "notes": "Italian company \u2014 GDPR Article 17 erasure right applies globally. Email privacy@luxottica.com to request deletion. The 2021 breach exposed DOB, addresses, phone numbers."
+  },
+  {
+    "names": [
+      "Advance Auto Parts",
+      "AdvanceAutoParts"
+    ],
+    "domain": "advanceautoparts.com",
+    "display_name": "Advance Auto Parts",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.advanceautoparts.com/i/help-center/privacy-policy",
+    "request_email": "privacy@advanceautoparts.com",
+    "notes": "Submit CCPA deletion request by emailing privacy@advanceautoparts.com. The 2024 breach exposed names, addresses, and phone numbers."
+  },
+  {
+    "names": [
+      "Beckett"
+    ],
+    "domain": "beckett.com",
+    "display_name": "Beckett",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.beckett.com/privacy",
+    "request_email": "privacy@beckett.com",
+    "notes": "Submit CCPA deletion request by emailing privacy@beckett.com. The 2025 breach exposed names, addresses, phone numbers, and usernames."
+  },
+  {
+    "names": [
+      "WIRED",
+      "Wired"
+    ],
+    "domain": "wired.com",
+    "display_name": "WIRED (Cond\u00e9 Nast)",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://www.condenast.com/privacy-policy#your-privacy-rights",
+    "request_email": "privacy@condenast.com",
+    "notes": "WIRED is published by Cond\u00e9 Nast. Submit CCPA deletion request at condenast.com/privacy-policy or email privacy@condenast.com."
+  },
+  {
+    "names": [
+      "SitePoint"
+    ],
+    "domain": "sitepoint.com",
+    "display_name": "SitePoint",
+    "hq_country": "AU",
+    "framework": "voluntary",
+    "deletion_url": "https://www.sitepoint.com/premium/account",
+    "request_email": "privacy@sitepoint.com",
+    "notes": "Australian company covered by the Australian Privacy Act. Email privacy@sitepoint.com to request data deletion. The 2020 breach exposed bios, emails, IPs, and passwords."
+  },
+  {
+    "names": [
+      "Duolingo"
+    ],
+    "domain": "duolingo.com",
+    "display_name": "Duolingo",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://support.duolingo.com/hc/en-us/articles/6098980847501",
+    "request_email": null,
+    "notes": "Delete account via Duolingo app Settings > Account > Delete Account, or submit CCPA request at support.duolingo.com/hc/en-us/articles/6098980847501."
+  },
+  {
+    "names": [
+      "Drizly"
+    ],
+    "domain": "drizly.com",
+    "display_name": "Drizly",
+    "hq_country": "US",
+    "framework": "none",
+    "deletion_url": null,
+    "request_email": null,
+    "notes": "Drizly shut down in March 2023 after acquisition by Uber. The service no longer exists \u2014 no account deletion possible. The 2020 breach data (DOB, email, password) is in third-party archives."
+  },
+  {
+    "names": [
+      "SynthientCredentialStuffingThreatData",
+      "Synthient"
+    ],
+    "domain": null,
+    "display_name": "Synthient Credential Stuffing Dataset",
+    "hq_country": null,
+    "framework": "none",
+    "deletion_url": null,
+    "request_email": null,
+    "notes": "A credential stuffing threat intelligence dataset \u2014 not a consumer service. This data was compiled by attackers and shared in underground forums. No removal possible. It means your email + password combination was used in automated login attacks."
+  },
+  {
+    "names": [
+      "NotSOCRadar",
+      "SOCRadar"
+    ],
+    "domain": "socradar.io",
+    "display_name": "SOCRadar (threat intel dataset)",
+    "hq_country": null,
+    "framework": "none",
+    "deletion_url": null,
+    "request_email": null,
+    "notes": "A threat intelligence dataset aggregated by SOCRadar \u2014 not a service you signed up for. This represents data that was compiled from other sources. No removal possible. Monitor via HIBP for future breach notifications."
+  },
+  {
+    "names": [
+      "Plaid"
+    ],
+    "domain": "plaid.com",
+    "display_name": "Plaid",
+    "hq_country": "US",
+    "framework": "ccpa",
+    "deletion_url": "https://my.plaid.com/privacy",
+    "request_email": "privacy@plaid.com",
+    "notes": "Financial data connector. Revoke app access and submit CCPA deletion at my.plaid.com/privacy \u2014 this disconnects your bank accounts from all linked apps."
+  }
+]

@@ -1,0 +1,55 @@
+{
+  "success": true,
+  "tool": "whoxy",
+  "input_type": "email",
+  "input_value": "testuser@example.com",
+  "timestamp": "2026-06-08T00:00:00Z",
+  "data": {
+    "query_email": "testuser@example.com",
+    "query_name": "",
+    "total_results": 3,
+    "domains": [
+      {
+        "domain_name": "testuserconsulting.com",
+        "create_date": "2019-03-15",
+        "update_date": "2024-03-15",
+        "expiry_date": "2027-03-15",
+        "registrar_name": "Namecheap, Inc.",
+        "registrant_name": "Test User",
+        "registrant_email": "testuser@example.com",
+        "registrant_company": "Test User Consulting LLC",
+        "registrant_address": "123 Main St, San Francisco, CA, 94102, US"
+      },
+      {
+        "domain_name": "tuser-dev.io",
+        "create_date": "2021-07-01",
+        "update_date": "2023-07-01",
+        "expiry_date": "2024-07-01",
+        "registrar_name": "GoDaddy.com, LLC",
+        "registrant_name": "Test User",
+        "registrant_email": "testuser@example.com",
+        "registrant_company": "",
+        "registrant_address": ""
+      },
+      {
+        "domain_name": "oldblog-testuser.net",
+        "create_date": "2015-11-20",
+        "update_date": "2020-11-20",
+        "expiry_date": "2021-11-20",
+        "registrar_name": "GoDaddy.com, LLC",
+        "registrant_name": "Test User",
+        "registrant_email": "testuser@example.com",
+        "registrant_company": "",
+        "registrant_address": "456 Oak Ave, Oakland, CA, 94601, US"
+      }
+    ],
+    "unique_registrar_names": ["Namecheap, Inc.", "GoDaddy.com, LLC"],
+    "unique_company_names": ["Test User Consulting LLC"],
+    "unique_addresses": [
+      "123 Main St, San Francisco, CA, 94102, US",
+      "456 Oak Ave, Oakland, CA, 94601, US"
+    ],
+    "active_domain_count": 1,
+    "expired_domain_count": 2
+  }
+}

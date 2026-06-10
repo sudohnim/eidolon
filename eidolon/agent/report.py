@@ -1,0 +1,999 @@
+import json
+import logging
+import re
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+from eidolon import config
+from eidolon.core.models import PipelineState
+
+
+def _rem_item(item: object) -> str:
+    """Normalize a remediation list item — LLM sometimes returns dicts instead of strings.
+
+    nodes._postprocess_analysis already coerces these upstream; this is a
+    defensive net for the TEST_MODE fixture path and any stray dict shapes.
+    """
+    if isinstance(item, dict):
+        if item.get("action"):
+            plats = item.get("platforms")
+            if isinstance(plats, list):
+                plats = ", ".join(str(p) for p in plats if p)
+            return f"{item['action']}: {plats}" if plats else str(item["action"])
+        service = item.get("service") or item.get("name") or ""
+        how = item.get("how_to_remove") or item.get("url") or ""
+        if service and how:
+            return f"{service}: {how}"
+        return service or ""
+    return str(item)
+
+
+_BAZZELL_DB_PATH = Path(__file__).parent.parent / "data" / "bazzell_brokers.json"
+
+
+def _load_bazzell_db() -> dict[str, dict]:
+    """Return domain -> broker entry map from bazzell_brokers.json."""
+    try:
+        entries = json.loads(_BAZZELL_DB_PATH.read_text())
+        return {e["domain"]: e for e in entries}
+    except Exception:
+        return {}
+
+
+logger = logging.getLogger(__name__)
+
+
+# ── Colour palette ────────────────────────────────────────────────────────────
+_RED = (0.85, 0.15, 0.15)
+_ORANGE = (0.90, 0.45, 0.05)
+_GREEN = (0.10, 0.60, 0.25)
+_DARK = (0.10, 0.10, 0.15)
+_MID = (0.35, 0.35, 0.40)
+_LIGHT = (0.94, 0.94, 0.96)
+_WHITE = (1.00, 1.00, 1.00)
+_ACCENT = (0.18, 0.36, 0.72)
+
+
+def _risk_colour(level: str) -> tuple:
+    lvl = (level or "").lower()
+    if lvl == "high":
+        return _RED
+    if lvl == "medium":
+        return _ORANGE
+    return _GREEN
+
+
+def _write_pdf(
+    pdf_path: Path, state: PipelineState, analysis: dict, run_id: str = ""
+) -> None:
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        HRFlowable,
+        KeepTogether,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    primary = state.classifications[0] if state.classifications else None
+    target = primary.value if primary else "unknown"
+    ts = datetime.now().strftime("%Y-%m-%d") + (f" · run {run_id}" if run_id else "")
+    risk_lvl = (analysis.get("overall_risk_level") or "low").upper()
+    risk_scr = analysis.get("overall_risk_score", 0)
+    risk_col = colors.Color(*_risk_colour(risk_lvl))
+
+    known = analysis.get("what_is_known", {}) or {}
+    remediation = analysis.get("remediation", {}) or {}
+
+    doc = SimpleDocTemplate(
+        str(pdf_path),
+        pagesize=A4,
+        leftMargin=18 * mm,
+        rightMargin=18 * mm,
+        topMargin=16 * mm,
+        bottomMargin=16 * mm,
+    )
+    W = A4[0] - 36 * mm  # usable width
+
+    # ── Styles ────────────────────────────────────────────────────────────────
+    def style(name: str, **kw: object) -> ParagraphStyle:
+        base = dict(
+            fontName="Helvetica",
+            fontSize=10,
+            leading=14,
+            textColor=colors.Color(*_DARK),
+            spaceAfter=2,
+        )
+        base.update(kw)
+        return ParagraphStyle(name, **base)
+
+    S = {
+        "h1": style(
+            "h1",
+            fontName="Helvetica-Bold",
+            fontSize=20,
+            leading=24,
+            textColor=colors.Color(*_ACCENT),
+            spaceAfter=2,
+        ),
+        "meta": style("meta", fontSize=9, textColor=colors.Color(*_MID)),
+        "h2": style(
+            "h2",
+            fontName="Helvetica-Bold",
+            fontSize=13,
+            leading=17,
+            textColor=colors.Color(*_ACCENT),
+            spaceBefore=10,
+            spaceAfter=4,
+        ),
+        "h3": style(
+            "h3",
+            fontName="Helvetica-Bold",
+            fontSize=10,
+            leading=14,
+            textColor=colors.Color(*_DARK),
+            spaceBefore=6,
+            spaceAfter=2,
+        ),
+        "body": style("body", leading=15),
+        "bullet": style("bullet", leftIndent=12, bulletIndent=0, leading=15),
+        "check": style(
+            "check",
+            fontName="Helvetica",
+            fontSize=9,
+            leading=14,
+            leftIndent=12,
+            textColor=colors.Color(*_DARK),
+        ),
+        "small": style("small", fontSize=8, textColor=colors.Color(*_MID)),
+    }
+
+    def hr():
+        return HRFlowable(
+            width="100%",
+            thickness=0.5,
+            color=colors.Color(*_LIGHT),
+            spaceAfter=6,
+            spaceBefore=2,
+        )
+
+    def h2(text):
+        return Paragraph(text, S["h2"])
+
+    def h3(text):
+        return Paragraph(text, S["h3"])
+
+    def body(text):
+        return Paragraph(text, S["body"])
+
+    def bullet(text):
+        return Paragraph(f"• &nbsp;{text}", S["bullet"])
+
+    def checkbox(text):
+        return Paragraph(f"☐ &nbsp;{_rem_item(text)}", S["check"])
+
+    def space(h=4):
+        return Spacer(1, h * mm)
+
+    # ── Build story ───────────────────────────────────────────────────────────
+    story = []
+
+    # Title block
+    story += [
+        Paragraph("Privacy OSINT Report", S["h1"]),
+        Paragraph(f"Target: <b>{target}</b> &nbsp;·&nbsp; Generated: {ts}", S["meta"]),
+        space(3),
+    ]
+
+    # Risk score banner
+    banner_data = [
+        [
+            Paragraph(
+                "RISK SCORE",
+                style(
+                    "rs_label",
+                    fontName="Helvetica-Bold",
+                    fontSize=8,
+                    textColor=colors.white,
+                    alignment=TA_CENTER,
+                ),
+            ),
+            Paragraph(
+                f"{risk_scr}/100",
+                style(
+                    "rs_score",
+                    fontName="Helvetica-Bold",
+                    fontSize=22,
+                    textColor=colors.white,
+                    alignment=TA_CENTER,
+                ),
+            ),
+            Paragraph(
+                risk_lvl,
+                style(
+                    "rs_level",
+                    fontName="Helvetica-Bold",
+                    fontSize=14,
+                    textColor=colors.white,
+                    alignment=TA_CENTER,
+                ),
+            ),
+        ]
+    ]
+    banner = Table(banner_data, colWidths=[W * 0.25, W * 0.35, W * 0.40])
+    banner.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), risk_col),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ("ROUNDEDCORNERS", [4]),
+            ]
+        )
+    )
+    story += [banner, space(5)]
+
+    # Identity summary
+    summary = analysis.get("identity_summary")
+    if summary:
+        story += [h2("What the Internet Knows About You"), body(summary), space(2)]
+
+    # What is known sub-sections
+    sections = [
+        ("handles_and_usernames", "Usernames & Handles"),
+        ("platforms_with_accounts", "Accounts Found"),
+        ("physical_data", "Physical Data Exposed"),
+        ("credentials_exposed", "Credentials in Circulation"),
+        ("google_footprint", "Google Footprint"),
+        ("breach_history", "Breach History"),
+    ]
+    for key, title in sections:
+        items = known.get(key) or []
+        if items:
+            block = [h3(title)]
+            for item in items:
+                block.append(bullet(item))
+            block.append(space(2))
+            story.append(KeepTogether(block))
+
+    # Top risks
+    top_risks = analysis.get("top_risks") or []
+    if top_risks:
+        story += [hr(), h2("Top Risks")]
+        for risk in top_risks:
+            story.append(
+                bullet(
+                    f'<font color="#{int(_RED[0]*255):02x}{int(_RED[1]*255):02x}{int(_RED[2]*255):02x}">⚠</font> &nbsp;{risk}'
+                )
+            )
+        story.append(space(2))
+
+    # Findings context — split into three buckets
+    findings = analysis.get("findings_context") or []
+    active_removable = [
+        f
+        for f in findings
+        if f.get("removable") is not False and f.get("account_is_active") is True
+    ]
+    breach_only = [
+        f
+        for f in findings
+        if f.get("removable") is not False and f.get("account_is_active") is not True
+    ]
+    no_action = [f for f in findings if f.get("removable") is False]
+
+    mech_labels = {
+        "gdpr": "GDPR erasure (EU/UK)",
+        "ccpa": "CCPA deletion (US)",
+        "optout": "Opt-out",
+        "account_deletion": "Delete account",
+    }
+
+    def _finding_block(f: dict) -> list:
+        name = f.get("name", "")
+        what = f.get("what_it_is", "")
+        why = f.get("why_it_matters", "")
+        how = f.get("how_to_remove", "")
+        mech = f.get("removal_mechanism", "")
+        mech_label = mech_labels.get(mech, "")
+        block = [h3(name)]
+        if what:
+            block.append(body(f"<b>What it is:</b> {what}"))
+        if why:
+            block.append(body(f"<b>Why it matters:</b> {why}"))
+        if how and mech_label:
+            block.append(body(f"<b>Action ({mech_label}):</b> {how}"))
+        elif how:
+            block.append(body(f"<b>Action:</b> {how}"))
+        block.append(space(2))
+        return block
+
+    if active_removable:
+        story += [hr(), h2("Active Accounts — Take Action")]
+        story.append(
+            body(
+                "You have confirmed active accounts on these services. "
+                "Delete the account and/or submit a data deletion request."
+            )
+        )
+        story.append(space(2))
+        for f in active_removable:
+            story.append(KeepTogether(_finding_block(f)))
+
+    if breach_only:
+        story += [hr(), h2("Breach Records — Request Data Deletion")]
+        story.append(
+            body(
+                "Your data appeared in breaches from these services. You may not have an "
+                "active account, but you can still submit a CCPA or GDPR deletion request "
+                "to have your stored data removed. Breach archive copies held by third "
+                "parties cannot be removed."
+            )
+        )
+        story.append(space(2))
+        for f in breach_only:
+            story.append(KeepTogether(_finding_block(f)))
+
+    if no_action:
+        story += [hr(), h2("No Action Available")]
+        story.append(
+            body(
+                "These findings are in public archives or threat intelligence datasets. "
+                "No removal is possible — monitor for future exposure."
+            )
+        )
+        story.append(space(2))
+        for f in no_action:
+            name = f.get("name", "")
+            why = f.get("why_it_matters", "")
+            block = [h3(name)]
+            if why:
+                block.append(body(why))
+            block.append(space(2))
+            story.append(KeepTogether(block))
+
+    # Remediation
+    story += [hr(), h2("What To Do")]
+    rem_sections = [
+        ("identity_fraud_prevention", "Identity Fraud Prevention (Do These First)"),
+        ("credit_freeze", "Freeze Your Credit"),
+        ("sim_swap_hardening", "SIM Swap Hardening"),
+        ("change_passwords", "Change Passwords"),
+        ("enable_2fa", "Enable 2FA"),
+        ("account_hygiene", "Account Hygiene"),
+        ("account_reviews", "Review Privacy Settings"),
+        ("ccpa_removals", "US Data Deletion Requests (CCPA)"),
+        ("gdpr_removals", "EU/UK Erasure Requests (GDPR)"),
+        ("broker_optouts", "Data Broker Opt-Outs"),
+        ("monitoring", "Ongoing Monitoring"),
+    ]
+    for key, title in rem_sections:
+        items = remediation.get(key) or []
+        if items:
+            block = [h3(title)]
+            for item in items:
+                block.append(checkbox(item))
+            block.append(space(2))
+            story.append(KeepTogether(block))
+
+    # Bazzell cross-reference section
+    broker_data = (
+        state.broker_result.data
+        if state.broker_result and state.broker_result.success
+        else {}
+    ) or {}
+    bazzell_tier1_pdf = broker_data.get("bazzell_tier1_found") or []
+    manual_required_pdf = broker_data.get("manual_removal_required") or []
+    easyoptouts_covers_pdf = broker_data.get("easyoptouts_covers", 0)
+
+    if bazzell_tier1_pdf or manual_required_pdf:
+        bazzell_db_pdf = _load_bazzell_db()
+        block = [h3("Priority Manual Opt-Outs (Bazzell Tier 1)")]
+        if easyoptouts_covers_pdf:
+            block.append(
+                body(
+                    f"EasyOptOuts.com can automate <b>{easyoptouts_covers_pdf}</b> of these — "
+                    f"visit easyoptouts.com first."
+                )
+            )
+        for name in bazzell_tier1_pdf:
+            entry = next(
+                (e for e in bazzell_db_pdf.values() if e.get("name") == name), None
+            )
+            if entry and entry.get("optout_url"):
+                days = entry.get("estimated_days_to_remove", "?")
+                block.append(checkbox(f'{name}: {entry["optout_url"]} ({days} days)'))
+            else:
+                block.append(checkbox(f"{name}: see broker's website"))
+        block.append(space(2))
+        story.append(KeepTogether(block))
+
+        if manual_required_pdf:
+            block = [h3("Additional Manual Opt-Outs (Not Covered by EasyOptOuts)")]
+            for name in manual_required_pdf:
+                entry = next(
+                    (e for e in bazzell_db_pdf.values() if e.get("name") == name), None
+                )
+                if entry and entry.get("optout_url"):
+                    days = entry.get("estimated_days_to_remove", "?")
+                    block.append(
+                        checkbox(f'{name}: {entry["optout_url"]} ({days} days)')
+                    )
+                else:
+                    block.append(checkbox(f"{name}: see broker's website"))
+            block.append(space(2))
+            story.append(KeepTogether(block))
+
+    no_action = remediation.get("no_action_available") or []
+    if no_action:
+        block = [h3("No Action Available")]
+        for item in no_action:
+            block.append(Paragraph(f"ℹ &nbsp;{item}", S["check"]))
+        block.append(space(2))
+        story.append(KeepTogether(block))
+
+    # Tool summary table
+    story += [hr(), h2("Tool Results")]
+    tool_rows = []
+
+    def _tr(label, result_obj, value_fn):
+        if result_obj and result_obj.success:
+            tool_rows.append([label, value_fn(result_obj.data)])
+
+    _tr("HIBP", state.hibp_result, lambda d: f"{d.get('breach_count',0)} breaches")
+    _tr(
+        "DeHashed",
+        state.dehashed_result,
+        lambda d: (
+            f"{d.get('total',0)} records — "
+            f"{d.get('plaintext_password_count',0)} plaintext, "
+            f"{d.get('hashed_password_count',0)} hashed"
+        ),
+    )
+    _tr(
+        "Whoxy",
+        state.whoxy_result,
+        lambda d: (
+            f"{d.get('total_results',0)} domains — "
+            f"{d.get('active_domain_count',0)} active, "
+            f"{d.get('expired_domain_count',0)} expired"
+        ),
+    )
+    _tr(
+        "Paste sites",
+        state.paste_result,
+        lambda d: (
+            f"{d.get('paste_count',0)} pastes — "
+            f"{d.get('credential_paste_count',0)} with credentials, "
+            f"{d.get('recent_paste_count',0)} recent"
+        ),
+    )
+    _tr(
+        "Infostealer logs",
+        state.stealer_result,
+        lambda d: (
+            f"{d.get('stealer_count',0)} hit(s) — "
+            f"{', '.join(d.get('malware_families') or []) or 'none'}"
+            if d.get("found")
+            else "no hits"
+        ),
+    )
+    _tr(
+        "Blackbird",
+        state.blackbird_result,
+        lambda d: f"{d.get('found_count',0)} accounts",
+    )
+    _tr(
+        "Maigret",
+        state.sherlock_result,
+        lambda d: f"{d.get('found_count',0)} profiles / {d.get('platforms_checked',0)} platforms",
+    )
+    _tr(
+        "Holehe",
+        state.holehe_result,
+        lambda d: f"{d.get('found_count',0)} registrations / {d.get('platforms_checked',0)} platforms",
+    )
+    _tr(
+        "GHunt",
+        state.ghunt_result,
+        lambda d: "Found" if d.get("found") else "Not found",
+    )
+    _tr(
+        "SpiderFoot",
+        state.spiderfoot_result,
+        lambda d: f"{d.get('element_count',0)} elements",
+    )
+    _tr(
+        "Broker scan",
+        state.broker_result,
+        lambda d: f"{d.get('brokers_found_count',0)} brokers, score {d.get('exposure_score',0)}/100",
+    )
+    _tr(
+        "Shodan",
+        state.shodan_result,
+        lambda d: f"{d.get('ips_checked',0)} IPs, {d.get('total_open_ports',0)} open ports, {d.get('total_vulns',0)} CVEs",
+    )
+    _tr(
+        "AI Audit",
+        state.ai_audit_result,
+        lambda d: f"{d.get('high_risk_count',0)} high-risk platforms",
+    )
+
+    _tr(
+        "Phone Lookup",
+        state.phone_result,
+        lambda d: (
+            f"valid={d.get('valid')} {d.get('line_type') or 'unknown'} "
+            f"via {(d.get('carrier') or {}).get('name') or 'unknown carrier'}"
+            if d.get("valid")
+            else "invalid / no key"
+        ),
+    )
+    _tr(
+        "Public Records",
+        state.public_records_result,
+        lambda d: f"{d.get('court_case_count',0)} court cases, {d.get('corporate_record_count',0)} corporate records",
+    )
+    # Correlation summary row — show count of successful follow-up pivots
+    successful_pivots = [r for r in state.correlation_results if r.success]
+    if successful_pivots or state.correlation_plan:
+        pivot_summary = (
+            f"{len(successful_pivots)} pivot(s) executed"
+            if successful_pivots
+            else "planned but skipped"
+        )
+        tool_rows.append(("Correlation", pivot_summary))
+
+    if tool_rows:
+        tbl = Table(
+            [
+                [
+                    Paragraph(r, style("tc", fontName="Helvetica-Bold", fontSize=9)),
+                    Paragraph(v, style("tv", fontSize=9)),
+                ]
+                for r, v in tool_rows
+            ],
+            colWidths=[W * 0.30, W * 0.70],
+        )
+        tbl.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.Color(*_ACCENT)),
+                    (
+                        "ROWBACKGROUNDS",
+                        (0, 0),
+                        (-1, -1),
+                        [colors.Color(*_LIGHT), colors.white],
+                    ),
+                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.Color(*_DARK)),
+                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9),
+                    ("TOPPADDING", (0, 0), (-1, -1), 4),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                    ("GRID", (0, 0), (-1, -1), 0.3, colors.Color(*_LIGHT)),
+                ]
+            )
+        )
+        story.append(tbl)
+
+    story += [
+        space(4),
+        Paragraph(
+            "Generated by osint-agent · local processing · no data stored", S["small"]
+        ),
+    ]
+
+    doc.build(story)
+
+
+def _build_identifier(state: PipelineState) -> str:
+    """Pick the best identifier for the filename.
+
+    Priority: email > phone > name > org.
+    Sanitizes the value so it's safe as a filename component.
+    """
+    priority = ["email", "phone", "name", "org"]
+    classifications_by_type = {c.type: c for c in state.classifications}
+    for kind in priority:
+        if kind in classifications_by_type:
+            value = classifications_by_type[kind].value
+            # Sanitize: keep alphanumeric, dots, hyphens, underscores; replace the rest
+            safe = re.sub(r"[^\w.\-]", "_", value)
+            # Collapse multiple underscores and strip leading/trailing ones
+            safe = re.sub(r"_+", "_", safe).strip("_")
+            return safe
+    return "unknown"
+
+
+def write_report(state: PipelineState) -> str:
+    output_dir = Path(config.get("RESULTS_OUTPUT_PATH"))
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    primary = state.classifications[0] if state.classifications else None
+    identifier = _build_identifier(state)
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    # Reuse the run_id bound at intake so logs and the report filename match.
+    run_id = state.run_id or uuid.uuid4().hex[:8]
+    base_name = f"{identifier}_{date_str}_{run_id}"
+
+    json_path = output_dir / f"{base_name}.json"
+    md_path = output_dir / f"{base_name}.md"
+    pdf_path = output_dir / f"{base_name}.pdf"
+
+    json_path.write_text(json.dumps(state.model_dump(), indent=2, default=str))
+
+    analysis = state.analysis_result or {}
+    known = analysis.get("what_is_known", {}) or {}
+    remediation = analysis.get("remediation", {}) or {}
+
+    # ── Markdown ──────────────────────────────────────────────────────────────
+    lines = [
+        "# Privacy OSINT Report",
+        "",
+        f"**Generated:** {date_str} (run {run_id})",
+        f"**Target:** {primary.value if primary else 'unknown'}",
+        f"**Risk Score:** {analysis.get('overall_risk_score', 'N/A')}/100 — {analysis.get('overall_risk_level', 'N/A').upper()}",
+        "",
+        "---",
+        "",
+        "## What the Internet Knows About You",
+        "",
+        analysis.get("identity_summary", "No analysis available."),
+        "",
+    ]
+
+    for key, title in [
+        ("handles_and_usernames", "Usernames & Handles"),
+        ("platforms_with_accounts", "Accounts Found"),
+        ("physical_data", "Physical Data Exposed"),
+        ("credentials_exposed", "Credentials in Circulation"),
+        ("google_footprint", "Google Footprint"),
+        ("breach_history", "Breach History"),
+    ]:
+        items = known.get(key) or []
+        if items:
+            lines += [f"### {title}", ""]
+            for item in items:
+                lines.append(f"- {item}")
+            lines.append("")
+
+    if analysis.get("top_risks"):
+        lines += ["---", "", "## Top Risks", ""]
+        for risk in analysis["top_risks"]:
+            lines.append(f"- {risk}")
+        lines.append("")
+
+    mech_labels_md = {
+        "gdpr": "GDPR erasure (EU/UK)",
+        "ccpa": "CCPA deletion (US)",
+        "optout": "Opt-out",
+        "account_deletion": "Delete account",
+    }
+
+    findings = analysis.get("findings_context") or []
+    active_removable_f = [
+        f
+        for f in findings
+        if f.get("removable") is not False and f.get("account_is_active") is True
+    ]
+    breach_only_f = [
+        f
+        for f in findings
+        if f.get("removable") is not False and f.get("account_is_active") is not True
+    ]
+    no_action_f = [f for f in findings if f.get("removable") is False]
+
+    def _md_finding(f: dict) -> list[str]:
+        name = f.get("name", "")
+        what = f.get("what_it_is", "")
+        why = f.get("why_it_matters", "")
+        how = f.get("how_to_remove", "")
+        mech = f.get("removal_mechanism", "")
+        mech_label = mech_labels_md.get(mech, "Action")
+        out = [f"### {name}", ""]
+        if what:
+            out.append(f"**What it is:** {what}  ")
+        if why:
+            out.append(f"**Why it matters:** {why}  ")
+        if how:
+            out.append(f"**{mech_label}:** {how}")
+        out.append("")
+        return out
+
+    if active_removable_f:
+        lines += ["---", "", "## Active Accounts — Take Action", ""]
+        lines.append(
+            "_You have confirmed active accounts on these services. "
+            "Delete the account and/or submit a data deletion request._"
+        )
+        lines.append("")
+        for f in active_removable_f:
+            lines += _md_finding(f)
+
+    if breach_only_f:
+        lines += ["---", "", "## Breach Records — Request Data Deletion", ""]
+        lines.append(
+            "_Your data appeared in breaches from these services. You may not have an "
+            "active account, but you can still submit a CCPA or GDPR deletion request. "
+            "Breach archive copies held by third parties cannot be removed._"
+        )
+        lines.append("")
+        for f in breach_only_f:
+            lines += _md_finding(f)
+
+    if no_action_f:
+        lines += ["---", "", "## No Action Available", ""]
+        lines.append(
+            "_These findings are in public archives or threat intel datasets. "
+            "No removal is possible._"
+        )
+        lines.append("")
+        for f in no_action_f:
+            name = f.get("name", "")
+            why = f.get("why_it_matters", "")
+            lines += [f"### {name}", ""]
+            if why:
+                lines.append(f"{why}")
+            lines.append("")
+
+    lines += ["---", "", "## What To Do", ""]
+    for key, title in [
+        ("identity_fraud_prevention", "Identity Fraud Prevention (Do These First)"),
+        ("credit_freeze", "Freeze Your Credit"),
+        ("sim_swap_hardening", "SIM Swap Hardening"),
+        ("change_passwords", "Change Passwords"),
+        ("enable_2fa", "Enable 2FA"),
+        ("account_hygiene", "Account Hygiene"),
+        ("account_reviews", "Review Privacy Settings"),
+        ("ccpa_removals", "US Data Deletion Requests (CCPA)"),
+        ("gdpr_removals", "EU/UK Erasure Requests (GDPR)"),
+        ("broker_optouts", "Data Broker Opt-Outs"),
+        ("monitoring", "Ongoing Monitoring"),
+    ]:
+        items = remediation.get(key) or []
+        if items:
+            lines += [f"### {title}", ""]
+            for action in items:
+                lines.append(f"- [ ] {_rem_item(action)}")
+            lines.append("")
+
+    # Bazzell cross-reference block
+    broker_data = (
+        state.broker_result.data
+        if state.broker_result and state.broker_result.success
+        else {}
+    ) or {}
+    bazzell_tier1 = broker_data.get("bazzell_tier1_found") or []
+    manual_required = broker_data.get("manual_removal_required") or []
+    easyoptouts_covers = broker_data.get("easyoptouts_covers", 0)
+
+    if bazzell_tier1 or manual_required:
+        bazzell_db = _load_bazzell_db()
+        lines += ["### Priority Manual Opt-Outs (Bazzell Tier 1)", ""]
+        if easyoptouts_covers:
+            lines.append(
+                f"_EasyOptOuts.com can automate {easyoptouts_covers} of these — visit <https://easyoptouts.com> first._"
+            )
+            lines.append("")
+        for name in bazzell_tier1:
+            entry = next(
+                (e for e in bazzell_db.values() if e.get("name") == name), None
+            )
+            if entry and entry.get("optout_url"):
+                days = entry.get("estimated_days_to_remove", "?")
+                lines.append(f"- [ ] {name}: {entry['optout_url']} ({days} days)")
+            else:
+                lines.append(f"- [ ] {name}: see broker's website for opt-out")
+        lines.append("")
+        if manual_required:
+            lines += ["### Additional Manual Opt-Outs (Not Covered by EasyOptOuts)", ""]
+            for name in manual_required:
+                entry = next(
+                    (e for e in bazzell_db.values() if e.get("name") == name), None
+                )
+                if entry and entry.get("optout_url"):
+                    days = entry.get("estimated_days_to_remove", "?")
+                    notes = entry.get("notes", "")
+                    line = f"- [ ] {name}: {entry['optout_url']} ({days} days)"
+                    if notes:
+                        line += f"  \n  _{notes}_"
+                    lines.append(line)
+                else:
+                    lines.append(f"- [ ] {name}: see broker's website for opt-out")
+            lines.append("")
+
+    no_action = remediation.get("no_action_available") or []
+    if no_action:
+        lines += ["### No Action Available", ""]
+        for item in no_action:
+            lines.append(f"- ℹ️ {item}")
+        lines.append("")
+
+    lines += ["---", "", "## Raw Tool Results", ""]
+    if state.hibp_result and state.hibp_result.success:
+        lines.append(
+            f"- **HIBP:** {state.hibp_result.data.get('breach_count',0)} breaches"
+        )
+    if state.dehashed_result and state.dehashed_result.success:
+        d = state.dehashed_result.data
+        if d.get("total", 0):
+            lines.append(
+                f"- **DeHashed:** {d.get('total',0)} records — "
+                f"{d.get('plaintext_password_count',0)} plaintext, "
+                f"{d.get('hashed_password_count',0)} hashed passwords"
+            )
+    if state.whoxy_result and state.whoxy_result.success:
+        d = state.whoxy_result.data
+        if d.get("total_results", 0):
+            lines.append(
+                f"- **Whoxy:** {d.get('total_results',0)} domains registered — "
+                f"{d.get('active_domain_count',0)} active, "
+                f"{d.get('expired_domain_count',0)} expired"
+            )
+    if state.paste_result and state.paste_result.success:
+        d = state.paste_result.data
+        if d.get("paste_count", 0):
+            lines.append(
+                f"- **Paste sites:** {d.get('paste_count',0)} pastes — "
+                f"{d.get('recent_paste_count',0)} posted within 90 days"
+            )
+            for entry in d.get("pastes") or []:
+                count_note = (
+                    f" — {entry.get('credential_count',0)} addresses"
+                    if entry.get("credential_count")
+                    else ""
+                )
+                lines.append(
+                    f"  - [{entry.get('paste_id')}]({entry.get('url')}) "
+                    f"({entry.get('date')}){count_note}"
+                )
+    if state.stealer_result and state.stealer_result.success:
+        d = state.stealer_result.data
+        if d.get("found"):
+            families = ", ".join(d.get("malware_families") or [])
+            lines.append(
+                f"- **Infostealer logs:** {d.get('stealer_count',0)} hit(s) "
+                f"— {families} "
+                f"({d.get('earliest_compromise','?')} → {d.get('latest_compromise','?')})"
+            )
+            for log in d.get("logs") or []:
+                lines.append(
+                    f"  - {log.get('malware_family')} on `{log.get('computer_name')}` "
+                    f"({log.get('date_compromised')}) — "
+                    f"{log.get('credential_count',0)} credentials stolen"
+                )
+    if state.blackbird_result and state.blackbird_result.success:
+        lines.append(
+            f"- **Blackbird:** {state.blackbird_result.data.get('found_count',0)} accounts found"
+        )
+    if state.sherlock_result and state.sherlock_result.success:
+        lines.append(
+            f"- **Maigret:** {state.sherlock_result.data.get('found_count',0)} profiles found across {state.sherlock_result.data.get('platforms_checked',0)} platforms"
+        )
+    if state.ghunt_result and state.ghunt_result.success:
+        lines.append(
+            f"- **GHunt:** {'Found' if state.ghunt_result.data.get('found') else 'Not found'}"
+        )
+    if state.holehe_result and state.holehe_result.success:
+        lines.append(
+            f"- **Holehe:** {state.holehe_result.data.get('found_count',0)} registrations found"
+        )
+    if state.broker_result and state.broker_result.success:
+        lines.append(
+            f"- **Broker scan:** {state.broker_result.data.get('brokers_found_count',0)} brokers, exposure score {state.broker_result.data.get('exposure_score',0)}/100"
+        )
+    if state.spiderfoot_result and state.spiderfoot_result.success:
+        lines.append(
+            f"- **SpiderFoot:** {state.spiderfoot_result.data.get('element_count',0)} elements"
+        )
+    if state.ai_audit_result and state.ai_audit_result.success:
+        lines.append(
+            f"- **AI Audit:** {state.ai_audit_result.data.get('high_risk_count',0)} high-risk platforms"
+        )
+    if (
+        state.phone_result
+        and state.phone_result.success
+        and state.phone_result.data.get("valid")
+    ):
+        d = state.phone_result.data
+        carrier_name = (d.get("carrier") or {}).get("name") or "unknown carrier"
+        location = (
+            d.get("geocode") or d.get("location") or d.get("country_code") or "unknown"
+        )
+        voip_tag = " ⚠ VoIP" if d.get("is_voip") else ""
+        lines.append(
+            f"- **Phone:** {d.get('line_type','?')}{voip_tag} via {carrier_name}, "
+            f"registered in {location}"
+        )
+    if state.public_records_result and state.public_records_result.success:
+        d = state.public_records_result.data
+        if d.get("court_case_count") or d.get("corporate_record_count"):
+            lines.append(
+                f"- **Public Records:** {d.get('court_case_count',0)} court cases, "
+                f"{d.get('corporate_record_count',0)} corporate records"
+            )
+            for case in (d.get("court_cases") or [])[:3]:
+                lines.append(
+                    f"  - *{case.get('case_name')}* — {case.get('court')}, "
+                    f"filed {case.get('date_filed')} [{case.get('nature_of_suit','')}]"
+                )
+            for rec in (d.get("corporate_records") or [])[:3]:
+                lines.append(
+                    f"  - {rec.get('role','?').title()} at **{rec.get('company_name')}** "
+                    f"({rec.get('jurisdiction','?')}, {rec.get('status','?')})"
+                )
+
+    if state.correlation_results:
+        successful = [r for r in state.correlation_results if r.success]
+        if successful:
+            lines += ["", "### Correlation Pivots"]
+            for r in successful:
+                if r.tool == "maigret":
+                    lines.append(
+                        f"- **Username `{r.input_value}`** — "
+                        f"{r.data.get('found_count', 0)} accounts found"
+                    )
+                    for site in (r.data.get("sites_found") or [])[:5]:
+                        lines.append(f"  - {site.get('name')}: {site.get('url', '')}")
+                elif r.tool == "public_records":
+                    lines.append(
+                        f"- **Name `{r.input_value}`** — "
+                        f"{r.data.get('court_case_count', 0)} court cases, "
+                        f"{r.data.get('corporate_record_count', 0)} corporate records"
+                    )
+                elif r.tool == "shodan_scan":
+                    lines.append(
+                        f"- **IP `{r.input_value}`** — "
+                        f"{r.data.get('total_open_ports', 0)} open ports, "
+                        f"{r.data.get('total_vulns', 0)} CVEs"
+                    )
+                elif r.tool == "phone_lookup" and r.data.get("valid"):
+                    carrier = (r.data.get("carrier") or {}).get("name", "unknown")
+                    lines.append(
+                        f"- **Phone `{r.input_value}`** — "
+                        f"{r.data.get('line_type', '?')} via {carrier}, "
+                        f"registered in {r.data.get('location', '?')}"
+                    )
+                elif r.tool == "hibp":
+                    lines.append(
+                        f"- **Email `{r.input_value}` (HIBP)** — "
+                        f"{r.data.get('breach_count', 0)} breaches"
+                    )
+                elif r.tool == "holehe":
+                    lines.append(
+                        f"- **Email `{r.input_value}` (accounts)** — "
+                        f"{r.data.get('found_count', 0)} platforms"
+                    )
+
+    lines += ["", f"Full results: `{json_path}`"]
+
+    md_content = "\n".join(lines)
+    md_path.write_text(md_content)
+
+    # ── PDF ───────────────────────────────────────────────────────────────────
+    try:
+        _write_pdf(pdf_path, state, analysis, run_id=run_id)
+        logger.info("PDF written to %s", pdf_path)
+    except Exception as exc:
+        logger.warning("PDF generation failed: %s", exc)
+        pdf_path = None
+
+    # ── stdout ────────────────────────────────────────────────────────────────
+    print(md_content)
+    print(f"\nFull results saved to: {json_path}")
+    print(f"Report saved to:       {md_path}")
+    if pdf_path:
+        print(f"PDF saved to:          {pdf_path}")
+
+    logger.info("report written to %s", md_path)
+    return str(md_path)

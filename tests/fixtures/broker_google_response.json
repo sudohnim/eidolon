@@ -1,0 +1,38 @@
+{
+  "success": true,
+  "tool": "broker_scan",
+  "input_type": "email",
+  "input_value": "test@example.com",
+  "timestamp": "2026-06-06T10:00:00",
+  "error": null,
+  "data": {
+    "query_value": "test@example.com",
+    "brokers_found_count": 2,
+    "exposure_score": 28,
+    "easyoptouts_url": "https://easyoptouts.com/dashboard",
+    "priority_optouts": [
+      "spokeo.com",
+      "peoplefinders.com"
+    ],
+    "brokers_found": [
+      {
+        "broker_name": "Spokeo",
+        "broker_domain": "spokeo.com",
+        "source": "google_cse",
+        "profile_url": null,
+        "data_found": ["email", "name"],
+        "confidence": "medium",
+        "optout_url": "https://www.spokeo.com/optout"
+      },
+      {
+        "broker_name": "PeopleFinders",
+        "broker_domain": "peoplefinders.com",
+        "source": "google_cse",
+        "profile_url": null,
+        "data_found": ["email"],
+        "confidence": "low",
+        "optout_url": "https://www.peoplefinders.com/opt-out"
+      }
+    ]
+  }
+}

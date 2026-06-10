@@ -1,0 +1,58 @@
+services:
+
+  spiderfoot:
+    image: spiderfoot
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  ollama:
+    image: ollama/ollama
+    restart: unless-stopped
+    init: true
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  agent:
+    build: .
+    image: osint-agent
+    env_file: .env
+    environment:
+      - SPIDERFOOT_HOST=http://spiderfoot:5001
+      - OLLAMA_HOST=http://ollama:11434
+    volumes:
+      - ./output:/app/output
+      - ghunt_creds:/root/.malfrats/ghunt
+    depends_on:
+      spiderfoot:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    profiles:
+      - run  # only starts explicitly via `docker compose run` or --profile run
+
+  removal:
+    image: osint-agent  # reuses the same image as the agent
+    entrypoint: ["uv", "run", "python", "bin/removal.py"]
+    volumes:
+      - ./output:/app/output
+    profiles:
+      - removal  # run with: docker compose --profile removal run removal [results_file]
+
+volumes:
+  ollama_models:
+  ghunt_creds:

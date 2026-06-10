@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "tool": "sherlock",
+  "input_type": "name",
+  "input_value": "testuser",
+  "timestamp": "2026-01-01T00:00:00Z",
+  "data": {
+    "username": "testuser",
+    "platforms_checked": 436,
+    "profiles_found": [
+      {"platform": "GitHub", "url": "https://github.com/testuser"},
+      {"platform": "Twitter", "url": "https://twitter.com/testuser"},
+      {"platform": "Reddit", "url": "https://www.reddit.com/user/testuser"}
+    ],
+    "found_count": 3
+  },
+  "error": null
+}

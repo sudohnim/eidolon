@@ -1,0 +1,18 @@
+{
+  "success": true,
+  "tool": "blackbird",
+  "input_type": "email",
+  "input_value": "test@example.com",
+  "timestamp": "2026-01-01T00:00:00Z",
+  "data": {
+    "email": "test@example.com",
+    "platforms_checked": 16,
+    "accounts_found": [
+      {"platform": "Adobe", "url": "https://auth.services.adobe.com/signin/v2/users/accounts", "category": "misc", "metadata": []},
+      {"platform": "Duolingo", "url": "https://www.duolingo.com/2017-06-30/users?email=test@example.com", "category": "hobby", "metadata": []},
+      {"platform": "Twitter", "url": "https://api.twitter.com/i/users/email_available.json?email=test@example.com", "category": "social", "metadata": []}
+    ],
+    "found_count": 3
+  },
+  "error": null
+}
