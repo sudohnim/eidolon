@@ -54,7 +54,7 @@ fi
 # ── Extract broker info for confirmation prompt ───────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "  ${BOLD}osint-agent  |  Removal Bot${NC}"
+echo -e "  ${BOLD}eidolon  |  Removal Bot${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo -e "  Results file: ${BOLD}$(basename "$RESULTS_FILE")${NC}"
@@ -118,10 +118,10 @@ if ! docker info &>/dev/null 2>&1; then
 fi
 
 # ── Check agent image exists ──────────────────────────────────────────────────
-REMOVAL_IMAGE="osint-agent"
+REMOVAL_IMAGE="eidolon"
 if ! docker image inspect "$REMOVAL_IMAGE" &>/dev/null 2>&1; then
-  echo -e "${RED}ERROR: osint-agent image not found. Build it first:${NC}"
-  echo "  docker compose build agent"
+  echo -e "${RED}ERROR: eidolon image not found. Build it first:${NC}"
+  echo "  docker compose build eidolon"
   exit 1
 fi
 

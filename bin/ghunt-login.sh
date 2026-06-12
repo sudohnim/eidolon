@@ -51,7 +51,7 @@ printf "2\n%s\n" "$B64" | \
   docker compose -f "$PROJECT_DIR/docker-compose.yml" \
     run --rm -T \
     --entrypoint /app/.venv/bin/ghunt \
-    agent login
+    eidolon login
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

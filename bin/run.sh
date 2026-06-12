@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bin/run.sh — run an osint-agent scan
+# bin/run.sh — run an eidolon scan
 # Usage: ./bin/run.sh --email target@example.com
 #        ./bin/run.sh --name "John Smith" --state CA
 #        ./bin/run.sh --email addr@example.com --name "John Smith" --state CA --phone +14155550100
@@ -42,7 +42,7 @@ AGENT_ARGS=("$@")
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "  ${BOLD}osint-agent${NC}"
+echo -e "  ${BOLD}eidolon${NC}"
 echo "  Inputs: ${AGENT_ARGS[*]}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
@@ -120,11 +120,11 @@ fi
 echo -e "${GREEN}✓ llama3.1:8b model ready${NC}"
 
 # ── Build agent image if needed ───────────────────────────────────────────────
-if ! docker image inspect osint-agent &>/dev/null 2>&1; then
-  echo -e "${YELLOW}! osint-agent image not found. Building...${NC}"
-  docker compose -f "$PROJECT_DIR/docker-compose.yml" build agent
+if ! docker image inspect eidolon &>/dev/null 2>&1; then
+  echo -e "${YELLOW}! eidolon image not found. Building...${NC}"
+  docker compose -f "$PROJECT_DIR/docker-compose.yml" build eidolon
 fi
-echo -e "${GREEN}✓ osint-agent image ready${NC}"
+echo -e "${GREEN}✓ eidolon image ready${NC}"
 
 # ── GHunt nudge ───────────────────────────────────────────────────────────────
 COMPOSE_PROJECT=$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')
@@ -155,7 +155,7 @@ echo ""
 
 mkdir -p "$PROJECT_DIR/output"
 
-docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps agent "${AGENT_ARGS[@]}"
+docker compose -f "$PROJECT_DIR/docker-compose.yml" run --rm --no-deps eidolon "${AGENT_ARGS[@]}"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

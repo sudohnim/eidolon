@@ -29,7 +29,7 @@ the explicitly defined external API endpoints listed below.
 
 `bin/run.sh` handles everything: starts SpiderFoot and Ollama if not running,
 waits for both to report healthy via Docker healthchecks, pulls the model if
-missing, builds the agent image if needed, then fires the scan.
+missing, builds the eidolon image if needed, then fires the scan.
 
 ### CLI flags
 ```
@@ -50,7 +50,7 @@ missing, builds the agent image if needed, then fires the scan.
 
 ### GHunt one-time login (optional)
 ```bash
-docker compose run --rm agent ghunt login
+docker compose run --rm eidolon ghunt login
 ```
 
 ---
@@ -63,11 +63,11 @@ Three services defined in `docker-compose.yml`:
 |---------|-------|------|------|
 | spiderfoot | spiderfoot | 5001 | Long-lived OSINT scanner |
 | ollama | ollama/ollama | 11434 | Long-lived local LLM |
-| agent | osint-agent (built locally) | — | Fire-and-forget scan runner |
+| eidolon | eidolon (built locally) | — | Fire-and-forget scan runner |
 
 - `spiderfoot` and `ollama` use `restart: unless-stopped` — start once, stay up
-- `agent` uses `profiles: [run]` — only starts via `docker compose run --rm agent`
-- `agent` has `depends_on: service_healthy` for both services
+- `eidolon` uses `profiles: [run]` — only starts via `docker compose run --rm eidolon`
+- `eidolon` has `depends_on: service_healthy` for both services
 - Ollama uses `init: true` to reap zombie subprocesses spawned during inference
 - SpiderFoot healthcheck uses `python3 urllib` (no curl in that image)
 - Ollama healthcheck uses `ollama list`
@@ -417,7 +417,7 @@ so each clone enables it via `bin/setup.sh` (or the `git config` line above).
 Everything lives under the `eidolon/` package. Run as `python -m eidolon.main`.
 
 ```
-osint-agent/                      # repo root
+eidolon/                      # repo root
 ├── CLAUDE.md
 ├── .env                          # gitignored
 ├── Dockerfile                    # ENTRYPOINT: python -m eidolon.main

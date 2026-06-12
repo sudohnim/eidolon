@@ -505,7 +505,7 @@ async def run_removals(results_path: Path, headless: bool) -> None:
 
     print()
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print("  osint-agent  |  Removal Bot")
+    print("  eidolon  |  Removal Bot")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print(f"  Results file : {results_path.name}")
     print(f"  Target name  : {target['name'] or '(not found in results)'}")
