@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bin/check.sh — verify the osint-agent Docker environment is ready
+# bin/check.sh — verify the eidolon Docker environment is ready
 set -euo pipefail
 
 RED='\033[0;31m'
@@ -19,7 +19,7 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  osint-agent environment check"
+echo "  eidolon environment check"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
@@ -104,10 +104,10 @@ echo ""
 # ── Docker images ─────────────────────────────────────────────────────────────
 echo "Images"
 
-if docker image inspect osint-agent &>/dev/null 2>&1; then
-  ok "osint-agent image built"
+if docker image inspect eidolon &>/dev/null 2>&1; then
+  ok "eidolon image built"
 else
-  warn "osint-agent image not built — run: docker compose build agent"
+  warn "eidolon image not built — run: docker compose build eidolon"
 fi
 
 echo ""

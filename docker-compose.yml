@@ -27,9 +27,9 @@ services:
       retries: 10
       start_period: 60s
 
-  agent:
+  eidolon:
     build: .
-    image: osint-agent
+    image: eidolon
     env_file: .env
     environment:
       - SPIDERFOOT_HOST=http://spiderfoot:5001
@@ -46,7 +46,7 @@ services:
       - run  # only starts explicitly via `docker compose run` or --profile run
 
   removal:
-    image: osint-agent  # reuses the same image as the agent
+    image: eidolon  # reuses the same image as the agent
     entrypoint: ["uv", "run", "python", "bin/removal.py"]
     volumes:
       - ./output:/app/output
