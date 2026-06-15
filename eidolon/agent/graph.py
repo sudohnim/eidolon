@@ -5,6 +5,7 @@ from eidolon.agent.nodes import (
     correlation_execute_node,
     correlation_planner_node,
     intake_node,
+    mitre_node,
     report_node,
     wave1_scan_node,
     wave2_scan_node,
@@ -23,6 +24,8 @@ def build_graph():  # type: ignore[return-value]
     # Wave 2: broker_scan, shodan, public_records, ai_audit
     #         — all run concurrently (need Wave 1 results)
     builder.add_node("wave2_scan", wave2_scan_node)
+    # MITRE ATT&CK mapping — deterministic, reads all Wave 1/2 results
+    builder.add_node("mitre", mitre_node)
     builder.add_node("correlation_planner", correlation_planner_node)
     builder.add_node("correlation_execute", correlation_execute_node)
     builder.add_node("analysis", analysis_node)
@@ -31,7 +34,8 @@ def build_graph():  # type: ignore[return-value]
     builder.set_entry_point("intake")
     builder.add_edge("intake", "wave1_scan")
     builder.add_edge("wave1_scan", "wave2_scan")
-    builder.add_edge("wave2_scan", "correlation_planner")
+    builder.add_edge("wave2_scan", "mitre")
+    builder.add_edge("mitre", "correlation_planner")
     builder.add_edge("correlation_planner", "correlation_execute")
     builder.add_edge("correlation_execute", "analysis")
     builder.add_edge("analysis", "report")

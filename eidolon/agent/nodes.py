@@ -666,6 +666,52 @@ def public_records_node(state: PipelineState) -> PipelineState:
     return state.model_copy(update={"public_records_result": result})
 
 
+def _extract_attack_signals(state: PipelineState) -> list:
+    """Derive MITRE ATT&CK 'signals' from scan results.
+
+    Each signal is a key into eidolon/data/attack_map.json. Add a rule here when
+    you add a signal block to that file. (Phase 1: infostealer logs only.)
+    """
+    from eidolon.tools.mitre import MitreSignal
+
+    signals: list = []
+
+    st = state.stealer_result
+    if st and st.success and st.data.get("found"):
+        families = ", ".join(st.data.get("malware_families") or []) or "unknown family"
+        signals.append(
+            MitreSignal(
+                signal="infostealer_log",
+                evidence=(
+                    f"{st.data.get('stealer_count', 0)} infostealer log(s) "
+                    f"({families})"
+                ),
+                severity="critical",
+            )
+        )
+
+    return signals
+
+
+def mitre_node(state: PipelineState) -> PipelineState:
+    """Map findings to MITRE ATT&CK techniques (deterministic — no LLM)."""
+    from eidolon.tools.mitre import MitreAttack, MitreInput
+
+    signals = _extract_attack_signals(state)
+    if not signals:
+        logger.info("mitre_node: no attack signals, skipping")
+        return state
+
+    result = run_to_result(MitreAttack(), MitreInput(signals=signals))
+    if result.success:
+        logger.info(
+            "mitre_node: OK — techniques=%s tactics=%s",
+            result.data.get("technique_count", 0),
+            result.data.get("tactics_covered", []),
+        )
+    return state.model_copy(update={"mitre_result": result})
+
+
 def _build_analysis_digest(state: PipelineState) -> str:
     """Build a compact text digest of scan results to send to the LLM.
 
@@ -1104,70 +1150,49 @@ def wave2_scan_node(state: PipelineState) -> PipelineState:
 
 
 def _extract_deterministic_pivots(state: PipelineState) -> list[dict]:
-    """Extract high-confidence pivots that don't need LLM judgment.
+    """Same-mailbox alternate forms of the target email worth a separate search.
 
-    Current rules:
-    1. DeHashed alternate emails — any email co-appearing in a breach record that
-       is NOT the original target:
-         - Gmail +alias variants (user+amazon@gmail.com) → HIBP for service-specific
-           breach exposure that the base-email search misses
-         - Different-domain alternates (user@comcast.net alongside user@gmail.com)
-           → full HIBP + Holehe footprint check
+    Only Gmail dot/+alias variants of the EXACT target mailbox qualify — HIBP
+    treats those as distinct, so they can surface service-specific breaches the
+    base search misses. We deliberately do NOT pivot on different-domain emails
+    that merely share the local-part: that's not evidence they're the same
+    person, just noise (and could pull a stranger's breaches into the dossier).
 
-    GHunt name → public records and broker scan are already handled deterministically
-    by Wave 2 via _resolve_name(); no need to re-add them here.
+    GHunt name → public records / broker scan are already handled in Wave 2 via
+    _resolve_name(); no need to re-add them here.
     """
+    from eidolon.tools.dehashed import same_mailbox
+
     pivots: list[dict] = []
     already_seen: set[str] = {c.value.lower() for c in state.classifications}
-
     primary_email = next(
         (c.value for c in state.classifications if c.type == "email"), None
     )
+    if not (primary_email and state.dehashed_result and state.dehashed_result.success):
+        return pivots
 
-    if state.dehashed_result and state.dehashed_result.success and primary_email:
-        entries = state.dehashed_result.data.get("entries") or []
-        # Normalize base local-part: strip dots (Gmail treats them as equivalent)
-        base_local = primary_email.split("@")[0].lower().replace(".", "")
+    for entry in state.dehashed_result.data.get("entries") or []:
+        alt = (entry.get("email") or "").strip().lower()
+        if not alt or alt in already_seen:
+            continue
+        # Grounded only if it's the SAME mailbox (dot/+alias), not just a
+        # local-part match on another domain.
+        if not same_mailbox(alt, primary_email):
+            continue
+        already_seen.add(alt)
+        pivots.append(
+            {
+                "type": "email",
+                "value": alt,
+                "source": "dehashed",
+                "reason": (
+                    f"Gmail dot/+alias variant '{alt}' of the target mailbox — "
+                    "HIBP treats these as distinct, may surface extra service breaches"
+                ),
+            }
+        )
 
-        for entry in entries:
-            alt = (entry.get("email") or "").strip().lower()
-            if not alt or alt in already_seen:
-                continue
-            already_seen.add(alt)
-
-            alt_local = alt.split("@")[0].lower()
-            is_plus_variant = (
-                "+" in alt_local
-                and alt_local.split("+")[0].replace(".", "") == base_local
-            )
-
-            if is_plus_variant:
-                pivots.append(
-                    {
-                        "type": "email",
-                        "value": alt,
-                        "source": "dehashed",
-                        "reason": (
-                            f"Gmail +alias '{alt}' found in breach data — "
-                            "HIBP treats these as distinct; may surface additional service breaches"
-                        ),
-                    }
-                )
-            else:
-                # Different account co-appearing in the same breach record
-                pivots.append(
-                    {
-                        "type": "email",
-                        "value": alt,
-                        "source": "dehashed",
-                        "reason": (
-                            f"Alternate email '{alt}' co-appeared in breach record — "
-                            "check full breach history and active account footprint"
-                        ),
-                    }
-                )
-
-    return pivots[:3]  # cap at 3 to leave room for LLM pivots
+    return pivots[:3]
 
 
 def correlation_planner_node(state: PipelineState) -> PipelineState:
@@ -1823,16 +1848,169 @@ def _finalize_remediation(state: PipelineState, llm_rem: dict) -> dict:
     return final
 
 
-def _postprocess_analysis(state: PipelineState, analysis: dict) -> dict:
-    """Repair and complete the model's analysis before it reaches the report."""
-    analysis = dict(analysis)
-    analysis["what_is_known"] = _normalize_what_is_known(
-        analysis.get("what_is_known") or {}
+def _state_what_is_known(state: PipelineState) -> dict:
+    """Build what_is_known purely from scan results — deterministic, always complete.
+
+    These are facts (breaches, accounts, addresses), so we derive them from state
+    rather than trusting the LLM. Survives an LLM failure.
+    """
+    known: dict[str, list[str]] = {
+        "handles_and_usernames": [],
+        "platforms_with_accounts": [],
+        "physical_data": [],
+        "credentials_exposed": [],
+        "google_footprint": [],
+        "breach_history": [],
+    }
+
+    if state.hibp_result and state.hibp_result.success:
+        for b in state.hibp_result.data.get("breaches") or []:
+            name = b.get("name", "")
+            year = str(b.get("breach_date") or "")[:4]
+            classes = ", ".join((b.get("data_classes") or [])[:6])
+            label = f"{name} ({year})" if year else name
+            if not label:
+                continue
+            entry = f"{label} — {classes}" if classes else label
+            known["breach_history"].append(entry)
+            if any("password" in c.lower() for c in (b.get("data_classes") or [])):
+                known["credentials_exposed"].append(entry)
+
+    known["platforms_with_accounts"] = _active_accounts(state)[:30]
+
+    if state.dehashed_result and state.dehashed_result.success:
+        known["handles_and_usernames"] = _clean_handles(
+            state.dehashed_result.data.get("unique_usernames") or []
+        )[:15]
+
+    addrs: list = []
+    for res in (state.dehashed_result, state.whoxy_result):
+        if res and res.success:
+            addrs += res.data.get("unique_addresses") or []
+    known["physical_data"] = _clean_addresses(addrs)[:10]
+
+    if (
+        state.ghunt_result
+        and state.ghunt_result.success
+        and state.ghunt_result.data.get("found")
+    ):
+        g = state.ghunt_result.data
+        gf: list[str] = []
+        if g.get("name"):
+            gf.append(f"Google account: {g['name']}")
+        gf += list(g.get("google_services") or [])
+        if g.get("youtube_channel"):
+            gf.append(f"YouTube: {g['youtube_channel']}")
+        known["google_footprint"] = gf
+
+    return known
+
+
+def _state_risk_floor(state: PipelineState) -> int:
+    """A minimum risk score derived from scan facts, so a failed LLM analysis
+    never reports 0/low for a heavily-exposed target."""
+    score = 0
+    if state.hibp_result and state.hibp_result.success:
+        score += min(state.hibp_result.data.get("breach_count", 0) * 2, 30)
+    if state.dehashed_result and state.dehashed_result.success:
+        d = state.dehashed_result.data
+        score += min((d.get("plaintext_password_count") or 0) * 5, 30)
+        score += min((d.get("hashed_password_count") or 0), 10)
+    if (
+        state.stealer_result
+        and state.stealer_result.success
+        and state.stealer_result.data.get("found")
+    ):
+        score += 40
+    if state.broker_result and state.broker_result.success:
+        score += min(state.broker_result.data.get("brokers_found_count", 0) * 3, 15)
+    if _has_address(state):
+        score += 10
+    if (
+        state.phone_result
+        and state.phone_result.success
+        and state.phone_result.data.get("valid")
+    ):
+        score += 5
+    return min(score, 100)
+
+
+def _state_identity_summary(state: PipelineState) -> str:
+    """Factual one-paragraph summary from scan results — used when the LLM's
+    narrative is unavailable, so the report is never blank."""
+    parts: list[str] = []
+    if state.hibp_result and state.hibp_result.success:
+        n = state.hibp_result.data.get("breach_count", 0)
+        if n:
+            parts.append(f"your email appears in {n} known data breach(es)")
+    if state.dehashed_result and state.dehashed_result.success:
+        d = state.dehashed_result.data
+        pp = d.get("plaintext_password_count") or 0
+        hp = d.get("hashed_password_count") or 0
+        bits = []
+        if pp:
+            bits.append(f"{pp} in plaintext")
+        if hp:
+            bits.append(f"{hp} hashed")
+        if bits:
+            parts.append(f"breach dumps expose {' and '.join(bits)} password(s)")
+    if (
+        state.stealer_result
+        and state.stealer_result.success
+        and state.stealer_result.data.get("found")
+    ):
+        parts.append("infostealer malware logs hold your full saved-credential store")
+    accts = _active_accounts(state)
+    if accts:
+        parts.append(f"active accounts were found on {len(accts)} platform(s)")
+    if not parts:
+        return "No significant public exposure was found for this identity."
+    return (
+        "Automated summary (the AI narrative step was unavailable): "
+        + "; ".join(parts)
+        + ". See the breach list, what's known, and the action items below."
     )
-    analysis["top_risks"] = _filter_top_risks(analysis.get("top_risks") or [], state)
+
+
+def _save_raw_response(state: PipelineState, raw: str, exc: Exception) -> None:
+    """Persist an unparseable model response for debugging (best-effort)."""
+    if not raw:
+        return
+    try:
+        out_dir = Path(config.get("RESULTS_OUTPUT_PATH"))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"analysis_raw_{state.run_id or 'unknown'}.txt"
+        path.write_text(f"# parse error: {exc}\n\n{raw}")
+        logger.info("analysis_node: saved raw model response to %s", path)
+    except Exception:
+        pass
+
+
+def _postprocess_analysis(state: PipelineState, analysis: dict) -> dict:
+    """Complete the analysis deterministically from scan state. The LLM only
+    contributes the narrative (identity_summary, top_risks, findings_context);
+    everything factual is built here so the report survives an LLM failure."""
+    analysis = dict(analysis)
+
+    # Facts — always derived from state, never the LLM.
+    analysis["what_is_known"] = _state_what_is_known(state)
     analysis["remediation"] = _finalize_remediation(
         state, analysis.get("remediation") or {}
     )
+
+    # Risk score: never below the state-derived floor.
+    floor = _state_risk_floor(state)
+    score = max(int(analysis.get("overall_risk_score") or 0), floor)
+    analysis["overall_risk_score"] = score
+    analysis["overall_risk_level"] = (
+        "high" if score >= 67 else "medium" if score >= 34 else "low"
+    )
+
+    # Narrative: keep the LLM's when present, fall back to a factual summary.
+    analysis["top_risks"] = _filter_top_risks(analysis.get("top_risks") or [], state)
+    if not str(analysis.get("identity_summary") or "").strip():
+        analysis["identity_summary"] = _state_identity_summary(state)
+
     return analysis
 
 
@@ -1869,6 +2047,11 @@ def analysis_node(state: PipelineState) -> PipelineState:
     # 8B model makes inference extremely slow. Instead we extract only the signal.
     digest = _build_analysis_digest(state)
 
+    # The LLM only adds narrative (identity_summary, top_risks, findings_context).
+    # If it fails or returns unparseable JSON, llm_analysis stays empty and the
+    # report is still built deterministically from scan state below.
+    llm_analysis: dict = {}
+    raw_text = ""
     try:
         from langchain_ollama import ChatOllama
 
@@ -1877,76 +2060,47 @@ def analysis_node(state: PipelineState) -> PipelineState:
             base_url=config.get("OLLAMA_HOST"),
             temperature=0,
             request_timeout=300,  # 5 min hard cap
-            num_ctx=8192,  # ANALYSIS_PROMPT alone is ~2300 tokens; default 2048 truncates the prompt
-            num_predict=4096,  # full remediation + findings_context JSON needs ~2000-3000 tokens
+            num_ctx=8192,  # ANALYSIS_PROMPT alone is ~2300 tokens; default truncates it
+            num_predict=4096,
         )
-        messages = [
-            ("system", ANALYSIS_PROMPT),
-            ("human", digest),
-        ]
-        response = llm.invoke(messages)
+        response = llm.invoke([("system", ANALYSIS_PROMPT), ("human", digest)])
         raw_text = (
             response.content
             if isinstance(response.content, str)
             else str(response.content)
         )
-        logger.debug("analysis_node: raw response length=%d", len(raw_text))
 
         # Strip markdown code fences if the model wrapped the JSON
         stripped = raw_text.strip()
         if stripped.startswith("```"):
-            stripped = stripped.split("\n", 1)[-1]
-            stripped = stripped.rsplit("```", 1)[0]
+            stripped = stripped.split("\n", 1)[-1].rsplit("```", 1)[0]
         stripped = stripped.strip()
-
         if not stripped:
             raise json.JSONDecodeError("empty response from model", "", 0)
 
-        analysis = json.loads(stripped)
+        llm_analysis = json.loads(stripped)
 
     except json.JSONDecodeError as exc:
-        logger.error("analysis_node: failed to parse Ollama JSON response: %s", exc)
-        error_result: dict = {
-            "overall_risk_score": 0,
-            "overall_risk_level": "low",
-            "summary": "Analysis failed — could not parse model response.",
-            "top_findings": [],
-            "immediate_actions": [],
-            "longer_term_actions": [],
-            "breach_severity": "none",
-            "broker_exposure_severity": "none",
-            "ai_exposure_severity": "none",
-            "error": str(exc),
-        }
-        return state.model_copy(update={"analysis_result": error_result})
+        logger.error(
+            "analysis_node: model JSON did not parse (%s) — "
+            "building a deterministic report from scan data",
+            exc,
+        )
+        _save_raw_response(state, raw_text, exc)
     except Exception as exc:
-        logger.error("analysis_node: unexpected error: %s", exc)
-        error_result = {
-            "overall_risk_score": 0,
-            "overall_risk_level": "low",
-            "summary": f"Analysis failed: {exc}",
-            "top_findings": [],
-            "immediate_actions": [],
-            "longer_term_actions": [],
-            "breach_severity": "none",
-            "broker_exposure_severity": "none",
-            "ai_exposure_severity": "none",
-            "error": str(exc),
-        }
-        return state.model_copy(update={"analysis_result": error_result})
+        logger.error(
+            "analysis_node: LLM call failed (%s) — "
+            "building a deterministic report from scan data",
+            exc,
+        )
 
-    # ── Hard contract (runs only on a successfully parsed response) ────────────
-    # LLM/network/JSON failures above degrade gracefully; from here on the output
-    # is OUR responsibility. Repair shapes + build remediation deterministically,
-    # then enforce the schema as a hard contract — a violation means the model
-    # dropped a core narrative field, and we fail loudly rather than ship a broken
-    # report. These steps are intentionally outside the soft-fallback try.
-    analysis = _postprocess_analysis(state, analysis)
+    # ── Always build the report deterministically; the LLM only enriched it ────
+    # what_is_known, remediation, and the risk floor come from scan state, so a
+    # heavily-exposed target never gets a blank report when the 8B model chokes.
+    analysis = _postprocess_analysis(state, llm_analysis)
     _validate_analysis(analysis)
 
-    # Enrich findings_context with real URLs from the static privacy DB. The LLM
-    # is instructed to set how_to_remove=null; we inject verified deletion URLs +
-    # correct legal frameworks here.
+    # Enrich findings_context with real URLs from the static privacy DB.
     findings = analysis.get("findings_context")
     if isinstance(findings, list):
         from eidolon.tools.privacy_url_lookup import enrich_findings_context

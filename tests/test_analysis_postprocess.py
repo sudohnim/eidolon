@@ -321,3 +321,59 @@ def test_digest_strips_junk_usernames_and_geo_fragments():
     assert "san diego ca us 92115" not in digest
     # the real street address does
     assert "519 Idaho Ave Apt 4" in digest
+
+
+# ── salvage: report survives an LLM failure (empty llm_analysis) ──────────────
+
+
+def _breach_heavy_state() -> PipelineState:
+    state = PipelineState(raw_input="x@example.com")
+    state.hibp_result = _tr(
+        "hibp",
+        {
+            "breach_count": 29,
+            "breaches": [
+                {
+                    "name": "Adobe",
+                    "breach_date": "2013-10-04",
+                    "data_classes": ["Email addresses", "Passwords"],
+                }
+            ],
+        },
+    )
+    state.dehashed_result = _tr(
+        "dehashed",
+        {"total": 44, "plaintext_password_count": 9, "hashed_password_count": 24},
+    )
+    state.holehe_result = _tr("holehe", {"platforms_found": [{"platform": "Spotify"}]})
+    return state
+
+
+def test_state_risk_floor_high_for_breach_heavy_target():
+    assert nodes._state_risk_floor(_breach_heavy_state()) >= 67
+    assert nodes._state_risk_floor(PipelineState(raw_input="x@example.com")) == 0
+
+
+def test_postprocess_salvages_a_full_report_when_llm_fails():
+    # Empty dict = the LLM returned nothing parseable.
+    out = nodes._postprocess_analysis(_breach_heavy_state(), {})
+    # risk is never understated to 0/low
+    assert out["overall_risk_score"] >= 67
+    assert out["overall_risk_level"] == "high"
+    # what's-known and remediation are built from state, not the (absent) LLM
+    assert out["what_is_known"]["breach_history"]
+    assert out["what_is_known"]["credentials_exposed"]
+    assert out["remediation"]["change_passwords"]
+    assert out["remediation"]["monitoring"]
+    # a factual summary stands in for the missing narrative
+    assert "29 known data breach" in out["identity_summary"]
+    # still satisfies the hard schema contract
+    nodes._validate_analysis(out)
+
+
+def test_postprocess_keeps_llm_narrative_when_present():
+    out = nodes._postprocess_analysis(
+        _breach_heavy_state(),
+        {"identity_summary": "Bespoke narrative from the model.", "top_risks": []},
+    )
+    assert out["identity_summary"] == "Bespoke narrative from the model."

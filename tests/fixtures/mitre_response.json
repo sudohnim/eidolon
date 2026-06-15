@@ -1,0 +1,40 @@
+{
+  "techniques": [
+    {
+      "technique_id": "T1555",
+      "name": "Credentials from Password Stores",
+      "tactic": "Credential Access",
+      "tactic_id": "TA0006",
+      "severity": "critical",
+      "what_it_is": "Stealing passwords saved in web browsers, password managers, and the OS keychain.",
+      "why_this_finding": "Infostealer malware that ran on the victim's machine dumped every password the browser had saved at once — not one site's password, the whole store.",
+      "url": "https://attack.mitre.org/techniques/T1555/",
+      "evidence": ["2 infostealer log(s) (RedLine, Vidar)"]
+    },
+    {
+      "technique_id": "T1539",
+      "name": "Steal Web Session Cookie",
+      "tactic": "Credential Access",
+      "tactic_id": "TA0006",
+      "severity": "critical",
+      "what_it_is": "Stealing a browser's active session cookies to hijack a logged-in session without the password or a 2FA prompt.",
+      "why_this_finding": "The same malware exfiltrated live session cookies, so an attacker can resume an authenticated session even with 2FA enabled.",
+      "url": "https://attack.mitre.org/techniques/T1539/",
+      "evidence": ["2 infostealer log(s) (RedLine, Vidar)"]
+    },
+    {
+      "technique_id": "T1078",
+      "name": "Valid Accounts",
+      "tactic": "Initial Access",
+      "tactic_id": "TA0001",
+      "severity": "critical",
+      "what_it_is": "Logging in with legitimate stolen credentials instead of breaking in — the activity looks normal and is hard to detect.",
+      "why_this_finding": "With the stolen passwords and cookies, an attacker signs in to the victim's real accounts directly; there is nothing to 'exploit' and little to flag.",
+      "url": "https://attack.mitre.org/techniques/T1078/",
+      "evidence": ["2 infostealer log(s) (RedLine, Vidar)"]
+    }
+  ],
+  "tactics_covered": ["Credential Access", "Initial Access"],
+  "technique_count": 3,
+  "highest_severity": "critical"
+}

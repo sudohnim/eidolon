@@ -76,6 +76,30 @@ def _hash_type(h: str) -> str:
     return "unknown"
 
 
+def _mailbox_key(email: str) -> tuple[str, str]:
+    """(local, domain) normalized to identify the same mailbox.
+
+    DeHashed matches loosely on the local-part, so an ``email:X`` search returns
+    records for OTHER domains that share the local-part (different people). We
+    normalize so only the same mailbox compares equal: subaddress (+tag) is
+    stripped everywhere; Gmail additionally ignores dots and googlemail == gmail.
+    """
+    email = (email or "").strip().lower()
+    if "@" not in email:
+        return (email, "")
+    local, _, domain = email.partition("@")
+    local = local.split("+", 1)[0]  # drop +alias (same inbox)
+    if domain in ("gmail.com", "googlemail.com"):
+        local = local.replace(".", "")  # Gmail ignores dots
+        domain = "gmail.com"
+    return (local, domain)
+
+
+def same_mailbox(a: str, b: str) -> bool:
+    """True if two addresses are the same mailbox (Gmail dot/+alias aware)."""
+    return bool(a) and bool(b) and _mailbox_key(a) == _mailbox_key(b)
+
+
 class Dehashed(Tool[DehashedInput, DehashedOutput]):
     name = "dehashed"
     input_schema = DehashedInput
@@ -119,6 +143,7 @@ class Dehashed(Tool[DehashedInput, DehashedOutput]):
                 return ", ".join(str(v) for v in val if v)
             return str(val) if val else ""
 
+        dropped = 0
         for hit in raw.get("entries") or []:
             entry = DehashedEntry(
                 database_name=_str(hit.get("database_name")),
@@ -131,6 +156,13 @@ class Dehashed(Tool[DehashedInput, DehashedOutput]):
                 name=_str(hit.get("name")),
                 address=_str(hit.get("address")),
             )
+
+            # DeHashed matches loosely on the local-part, so the result set
+            # mixes in OTHER mailboxes that share it (different people). Keep
+            # only records for the exact mailbox (Gmail dot/+alias aware).
+            if not same_mailbox(entry.email, email):
+                dropped += 1
+                continue
             entries.append(entry)
 
             if entry.password:
@@ -148,7 +180,7 @@ class Dehashed(Tool[DehashedInput, DehashedOutput]):
 
         output = DehashedOutput(
             query=email,
-            total=raw.get("total") or len(entries),
+            total=len(entries),  # records for THIS mailbox (after filtering)
             entries=entries,
             plaintext_password_count=plaintext_count,
             hashed_password_count=hashed_count,
@@ -160,6 +192,7 @@ class Dehashed(Tool[DehashedInput, DehashedOutput]):
         log.info(
             "ok",
             total=output.total,
+            dropped_other_mailbox=dropped,
             plaintext=output.plaintext_password_count,
             hashed=output.hashed_password_count,
             addresses=len(output.unique_addresses),

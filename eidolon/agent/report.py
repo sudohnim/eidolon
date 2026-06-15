@@ -41,6 +41,80 @@ def _load_bazzell_db() -> dict[str, dict]:
         return {}
 
 
+def _dossier_records(state: PipelineState) -> list[tuple[str, list[str]]]:
+    """[(source_breach, [credential_line, ...])] — the actual DeHashed records for
+    the exact mailbox, cleaned. Shared by the Markdown and PDF renderers."""
+    dh = (
+        state.dehashed_result.data
+        if (state.dehashed_result and state.dehashed_result.success)
+        else {}
+    )
+    by_db: dict[str, list[str]] = {}
+    for e in dh.get("entries") or []:
+        parts = []
+        user = _clean_cred_username(e.get("username", ""))
+        if user:
+            parts.append(f"username: {user}")
+        if e.get("password"):
+            parts.append(f"password: {e['password']}")
+        elif e.get("hashed_password"):
+            h, algo = _clean_cred_hash(e["hashed_password"])
+            if h:
+                parts.append(f"hash: {h}" + (f" ({algo})" if algo else ""))
+        addr = _clean_cred_address(e.get("address", ""))
+        if addr:
+            parts.append(f"address: {addr}")
+        if e.get("phone"):
+            parts.append(f"phone: {e['phone']}")
+        if parts:
+            db = e.get("database_name") or "Unknown source"
+            by_db.setdefault(db, []).append("  ·  ".join(parts))
+    return list(by_db.items())
+
+
+def _dossier_lines(state: PipelineState) -> list[str]:
+    """Markdown for the 'Leaked Credentials' dossier."""
+    records = _dossier_records(state)
+    if not records:
+        return []
+    n = sum(len(v) for _, v in records)
+    lines = [
+        "---",
+        "",
+        "## Leaked Credentials",
+        "",
+        "_Actual records found in breach dumps for this exact mailbox — "
+        f"{n} record(s) across {len(records)} source(s). "
+        "Passwords are shown exactly as they leaked._",
+        "",
+    ]
+    for db, items in records:
+        lines += [f"### {db}", ""] + [f"- {it}" for it in items] + [""]
+    return lines
+
+
+def _clean_cred_username(u: str) -> str:
+    """DeHashed packs multiple values into one field; keep the first real one."""
+    u = (u or "").split(",")[0].strip()
+    return "" if len(u) < 3 or u.isdigit() else u
+
+
+def _clean_cred_address(a: str) -> str:
+    """Show only real addresses (street number present) — drop country codes /
+    short geo fragments like 'PH' or 'NU'."""
+    a = (a or "").strip()
+    return a if (len(a) >= 6 and re.search(r"\d", a)) else ""
+
+
+def _clean_cred_hash(h: str) -> tuple[str, str]:
+    """DeHashed formats hashes as 'hash:salt||ALGO' — split out the raw hash + algo."""
+    from eidolon.tools.dehashed import _hash_type
+
+    raw = (h or "").split("||")[0].split(":")[0].strip()
+    algo = h.split("||")[-1].strip() if "||" in (h or "") else _hash_type(raw)
+    return raw, algo
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -262,6 +336,24 @@ def _write_pdf(
             block = [h3(title)]
             for item in items:
                 block.append(bullet(item))
+            block.append(space(2))
+            story.append(KeepTogether(block))
+
+    # Leaked Credentials dossier — escape, since passwords can contain < & etc.
+    dossier = _dossier_records(state)
+    if dossier:
+        from xml.sax.saxutils import escape
+
+        story += [hr(), h2("Leaked Credentials")]
+        story.append(
+            body(
+                "Actual records found in breach dumps for this exact mailbox. "
+                "Passwords are shown exactly as they leaked."
+            )
+        )
+        story.append(space(2))
+        for db, items in dossier:
+            block = [h3(escape(db))] + [bullet(escape(it)) for it in items]
             block.append(space(2))
             story.append(KeepTogether(block))
 
@@ -667,11 +759,48 @@ def write_report(state: PipelineState) -> str:
                 lines.append(f"- {item}")
             lines.append("")
 
+    # ── Leaked Credentials dossier — the actual records from DeHashed ──────────
+    lines += _dossier_lines(state)
+
     if analysis.get("top_risks"):
         lines += ["---", "", "## Top Risks", ""]
         for risk in analysis["top_risks"]:
             lines.append(f"- {risk}")
         lines.append("")
+
+    # Threat Model (MITRE ATT&CK) — what an attacker can do with what we found,
+    # named in the standard ATT&CK vocabulary. Deterministic; teaches as it goes.
+    mitre = (
+        state.mitre_result.data
+        if (state.mitre_result and state.mitre_result.success)
+        else {}
+    )
+    techniques = mitre.get("techniques") or []
+    if techniques:
+        lines += ["---", "", "## Threat Model (MITRE ATT&CK)", ""]
+        lines.append(
+            f"_{mitre.get('technique_count', 0)} attacker technique(s) your exposure "
+            f"enables, across {', '.join(mitre.get('tactics_covered') or [])}. "
+            f"MITRE ATT&CK is a public catalog of real adversary behaviour "
+            f"(attack.mitre.org)._"
+        )
+        lines.append("")
+        for t in techniques:
+            sev = (t.get("severity") or "").upper()
+            lines += [
+                f"### {t.get('technique_id')} — {t.get('name')}"
+                f"  ·  {t.get('tactic')}" + (f"  ·  {sev}" if sev else ""),
+                "",
+            ]
+            if t.get("what_it_is"):
+                lines.append(f"**What it is:** {t['what_it_is']}  ")
+            if t.get("why_this_finding"):
+                lines.append(f"**Why it applies to you:** {t['why_this_finding']}  ")
+            if t.get("evidence"):
+                lines.append(f"**Evidence:** {'; '.join(t['evidence'])}  ")
+            if t.get("url"):
+                lines.append(f"**Learn more:** {t['url']}")
+            lines.append("")
 
     mech_labels_md = {
         "gdpr": "GDPR erasure (EU/UK)",

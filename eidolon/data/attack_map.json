@@ -1,0 +1,34 @@
+{
+  "_about": "Maps OSINT finding 'signals' to MITRE ATT&CK techniques. Each signal key is produced by eidolon/agent/nodes.py:_extract_attack_signals() from scan results. Add a signal block, then add the matching extraction rule. This file doubles as ATT&CK study notes — every entry links to the official technique page.",
+  "signals": {
+    "infostealer_log": [
+      {
+        "technique_id": "T1555",
+        "name": "Credentials from Password Stores",
+        "tactic": "Credential Access",
+        "tactic_id": "TA0006",
+        "what_it_is": "Stealing passwords saved in web browsers, password managers, and the OS keychain.",
+        "why_this_finding": "Infostealer malware that ran on the victim's machine dumped every password the browser had saved at once — not one site's password, the whole store.",
+        "url": "https://attack.mitre.org/techniques/T1555/"
+      },
+      {
+        "technique_id": "T1539",
+        "name": "Steal Web Session Cookie",
+        "tactic": "Credential Access",
+        "tactic_id": "TA0006",
+        "what_it_is": "Stealing a browser's active session cookies to hijack a logged-in session without the password or a 2FA prompt.",
+        "why_this_finding": "The same malware exfiltrated live session cookies, so an attacker can resume an authenticated session even with 2FA enabled.",
+        "url": "https://attack.mitre.org/techniques/T1539/"
+      },
+      {
+        "technique_id": "T1078",
+        "name": "Valid Accounts",
+        "tactic": "Initial Access",
+        "tactic_id": "TA0001",
+        "what_it_is": "Logging in with legitimate stolen credentials instead of breaking in — the activity looks normal and is hard to detect.",
+        "why_this_finding": "With the stolen passwords and cookies, an attacker signs in to the victim's real accounts directly; there is nothing to 'exploit' and little to flag.",
+        "url": "https://attack.mitre.org/techniques/T1078/"
+      }
+    ]
+  }
+}

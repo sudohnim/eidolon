@@ -535,16 +535,28 @@ class TestDeterministicPivots:
         assert pivots[0]["value"] == "user+amazon@gmail.com"
         assert "alias" in pivots[0]["reason"].lower()
 
-    def test_alternate_domain_detected(self):
+    def test_alternate_domain_dropped(self):
         from eidolon.agent.nodes import _extract_deterministic_pivots
 
+        # Same local-part, different domain — NOT evidence it's the same person.
         state = self._make_state(
             "user@gmail.com",
             [{"email": "user@comcast.net", "database_name": "SomeSite"}],
         )
+        assert _extract_deterministic_pivots(state) == []
+
+    def test_gmail_dot_variant_pivots(self):
+        from eidolon.agent.nodes import _extract_deterministic_pivots
+
+        # nichole.lopez is the same mailbox as nicholelopez, but HIBP treats the
+        # string as distinct — so it's a grounded, worth-searching alternate.
+        state = self._make_state(
+            "nicholelopez@gmail.com",
+            [{"email": "nichole.lopez@gmail.com", "database_name": "SomeSite"}],
+        )
         pivots = _extract_deterministic_pivots(state)
         assert len(pivots) == 1
-        assert pivots[0]["value"] == "user@comcast.net"
+        assert pivots[0]["value"] == "nichole.lopez@gmail.com"
 
     def test_original_email_not_duplicated(self):
         from eidolon.agent.nodes import _extract_deterministic_pivots
@@ -562,8 +574,8 @@ class TestDeterministicPivots:
         state = self._make_state(
             "user@gmail.com",
             [
-                {"email": "user@comcast.net", "database_name": "Site1"},
-                {"email": "user@comcast.net", "database_name": "Site2"},
+                {"email": "user+a@gmail.com", "database_name": "Site1"},
+                {"email": "user+a@gmail.com", "database_name": "Site2"},
             ],
         )
         pivots = _extract_deterministic_pivots(state)
@@ -572,13 +584,14 @@ class TestDeterministicPivots:
     def test_capped_at_three(self):
         from eidolon.agent.nodes import _extract_deterministic_pivots
 
+        # Only same-mailbox (+alias) variants qualify, so use four of those.
         state = self._make_state(
             "user@gmail.com",
             [
-                {"email": "user@comcast.net"},
-                {"email": "user@yahoo.com"},
-                {"email": "user@hotmail.com"},
-                {"email": "user@aol.com"},
+                {"email": "user+1@gmail.com"},
+                {"email": "user+2@gmail.com"},
+                {"email": "user+3@gmail.com"},
+                {"email": "user+4@gmail.com"},
             ],
         )
         pivots = _extract_deterministic_pivots(state)
