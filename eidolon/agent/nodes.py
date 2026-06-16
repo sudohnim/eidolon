@@ -670,7 +670,7 @@ def _extract_attack_signals(state: PipelineState) -> list:
     """Derive MITRE ATT&CK 'signals' from scan results.
 
     Each signal is a key into eidolon/data/attack_map.json. Add a rule here when
-    you add a signal block to that file. (Phase 1: infostealer logs only.)
+    you add a signal block to that file.
     """
     from eidolon.tools.mitre import MitreSignal
 
@@ -689,6 +689,24 @@ def _extract_attack_signals(state: PipelineState) -> list:
                 severity="critical",
             )
         )
+
+    if state.hibp_result and state.hibp_result.success:
+        pw_breaches = [
+            b.get("name", "")
+            for b in state.hibp_result.data.get("breaches") or []
+            if any("password" in c.lower() for c in (b.get("data_classes") or []))
+        ]
+        if pw_breaches:
+            shown = ", ".join(p for p in pw_breaches[:5] if p)
+            more = f" +{len(pw_breaches) - 5} more" if len(pw_breaches) > 5 else ""
+            signals.append(
+                MitreSignal(
+                    signal="password_in_breach",
+                    evidence=f"passwords exposed in {len(pw_breaches)} breach(es): "
+                    f"{shown}{more}",
+                    severity="high",
+                )
+            )
 
     return signals
 

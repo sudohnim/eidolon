@@ -1,6 +1,26 @@
 {
   "_about": "Maps OSINT finding 'signals' to MITRE ATT&CK techniques. Each signal key is produced by eidolon/agent/nodes.py:_extract_attack_signals() from scan results. Add a signal block, then add the matching extraction rule. This file doubles as ATT&CK study notes — every entry links to the official technique page.",
   "signals": {
+    "password_in_breach": [
+      {
+        "technique_id": "T1589.001",
+        "name": "Gather Victim Identity Information: Credentials",
+        "tactic": "Reconnaissance",
+        "tactic_id": "TA0043",
+        "what_it_is": "Collecting a target's leaked usernames and passwords from breach dumps to prepare account-takeover attacks.",
+        "why_this_finding": "Your password (or its hash) was exposed in one or more breaches, handing an attacker a credential to try directly or crack offline.",
+        "url": "https://attack.mitre.org/techniques/T1589/001/"
+      },
+      {
+        "technique_id": "T1110.004",
+        "name": "Brute Force: Credential Stuffing",
+        "tactic": "Credential Access",
+        "tactic_id": "TA0006",
+        "what_it_is": "Replaying a leaked email+password pair against many other sites, betting the password was reused.",
+        "why_this_finding": "Your credentials are in public breach dumps, so an attacker can stuff them into other services you use — anywhere you reused that password is exposed.",
+        "url": "https://attack.mitre.org/techniques/T1110/004/"
+      }
+    ],
     "infostealer_log": [
       {
         "technique_id": "T1555",

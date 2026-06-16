@@ -369,6 +369,53 @@ def _write_pdf(
             )
         story.append(space(2))
 
+    # Threat Model (MITRE ATT&CK) — mirrors the markdown section so the PDF
+    # deliverable carries the same threat vocabulary. Deterministic.
+    mitre = (
+        state.mitre_result.data
+        if (state.mitre_result and state.mitre_result.success)
+        else {}
+    )
+    techniques = mitre.get("techniques") or []
+    if techniques:
+        from xml.sax.saxutils import escape
+
+        story += [hr(), h2("Threat Model (MITRE ATT&CK)")]
+        story.append(
+            body(
+                f"<i>{mitre.get('technique_count', 0)} attacker technique(s) your "
+                f"exposure enables, across "
+                f"{escape(', '.join(mitre.get('tactics_covered') or []))}. "
+                f"MITRE ATT&CK is a public catalog of real adversary behaviour "
+                f"(attack.mitre.org).</i>"
+            )
+        )
+        story.append(space(2))
+        for t in techniques:
+            sev = (t.get("severity") or "").upper()
+            head = (
+                f"{escape(str(t.get('technique_id')))} — "
+                f"{escape(str(t.get('name')))}  ·  {escape(str(t.get('tactic')))}"
+                + (f"  ·  {sev}" if sev else "")
+            )
+            block = [h3(head)]
+            if t.get("what_it_is"):
+                block.append(body(f"<b>What it is:</b> {escape(t['what_it_is'])}"))
+            if t.get("why_this_finding"):
+                block.append(
+                    body(
+                        f"<b>Why it applies to you:</b> {escape(t['why_this_finding'])}"
+                    )
+                )
+            if t.get("evidence"):
+                block.append(
+                    body(f"<b>Evidence:</b> {escape('; '.join(t['evidence']))}")
+                )
+            if t.get("url"):
+                block.append(body(f"<b>Learn more:</b> {escape(t['url'])}"))
+            block.append(space(2))
+            story.append(KeepTogether(block))
+
     # Findings context — split into three buckets
     findings = analysis.get("findings_context") or []
     active_removable = [
