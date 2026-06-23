@@ -124,14 +124,88 @@ logger = logging.getLogger(__name__)
 
 
 # ── Colour palette ────────────────────────────────────────────────────────────
-_RED = (0.85, 0.15, 0.15)
-_ORANGE = (0.90, 0.45, 0.05)
-_GREEN = (0.10, 0.60, 0.25)
-_DARK = (0.10, 0.10, 0.15)
-_MID = (0.35, 0.35, 0.40)
-_LIGHT = (0.94, 0.94, 0.96)
+# Soft, warm, low-saturation tones — a calm briefing, not a pentest printout.
+# Risk colours read as gentle signals rather than alarms; text is a muted slate
+# ink instead of near-black; the accent is a dusty slate-blue.
+_RED = (0.70, 0.36, 0.31)  # muted clay / terracotta — high risk
+_ORANGE = (0.80, 0.58, 0.34)  # soft amber — medium risk
+_GREEN = (0.42, 0.56, 0.45)  # muted sage — low risk
+_DARK = (0.22, 0.24, 0.29)  # muted slate ink — body text
+_MID = (0.46, 0.48, 0.53)  # soft grey — secondary text
+_LIGHT = (0.95, 0.95, 0.96)  # warm off-white — dividers / row tint
 _WHITE = (1.00, 1.00, 1.00)
-_ACCENT = (0.18, 0.36, 0.72)
+_ACCENT = (0.36, 0.45, 0.56)  # dusty slate-blue — headings
+_BAND = (0.96, 0.96, 0.97)  # gentle header band fill
+
+# ── Soft typeface ─────────────────────────────────────────────────────────────
+# Nunito (rounded, humanist, OFL) reads warmer than Helvetica. We bundle static
+# weights under assets/fonts/ and register them with reportlab. If the fonts are
+# unavailable (e.g. a packaged install without assets), fall back to Helvetica so
+# the report still renders.
+
+
+def _find_assets_dir() -> Path:
+    """Locate the assets/ folder for both source checkouts and packaged installs.
+
+    Source layout keeps assets/ at the repo root (../../assets relative to this
+    file); a wheel build force-includes them next to the package. Return the
+    first that exists, defaulting to the repo-root path.
+    """
+    candidates = [
+        Path(__file__).resolve().parents[2] / "assets",  # repo root (source)
+        Path(__file__).resolve().parents[1] / "assets",  # packaged alongside pkg
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    return candidates[0]
+
+
+_ASSETS_DIR = _find_assets_dir()
+_FONT_DIR = _ASSETS_DIR / "fonts"
+_LOGO_PATH = _ASSETS_DIR / "logo.png"
+
+# Font face names used in the styles below; rebound to Helvetica on fallback.
+_FONT_BODY = "Nunito"
+_FONT_MEDIUM = "Nunito-SemiBold"
+_FONT_BOLD = "Nunito-Bold"
+
+_FONTS_READY: bool = False
+
+
+def _register_fonts() -> bool:
+    """Register the bundled Nunito weights once; fall back to Helvetica.
+
+    Returns True if Nunito is available, False if we fell back. Idempotent.
+    """
+    global _FONTS_READY, _FONT_BODY, _FONT_MEDIUM, _FONT_BOLD
+    if _FONTS_READY:
+        return _FONT_BODY == "Nunito"
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    faces = {
+        "Nunito": _FONT_DIR / "Nunito-Regular.ttf",
+        "Nunito-SemiBold": _FONT_DIR / "Nunito-SemiBold.ttf",
+        "Nunito-Bold": _FONT_DIR / "Nunito-Bold.ttf",
+    }
+    try:
+        if not all(p.exists() for p in faces.values()):
+            raise FileNotFoundError("bundled Nunito fonts not found")
+        for name, path in faces.items():
+            if name not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont(name, str(path)))
+        _FONTS_READY = True
+        return True
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning("soft font unavailable, using Helvetica: %s", exc)
+        _FONT_BODY, _FONT_MEDIUM, _FONT_BOLD = (
+            "Helvetica",
+            "Helvetica-Bold",
+            "Helvetica-Bold",
+        )
+        _FONTS_READY = True
+        return False
 
 
 def _risk_colour(level: str) -> tuple:
@@ -153,6 +227,7 @@ def _write_pdf(
     from reportlab.lib.units import mm
     from reportlab.platypus import (
         HRFlowable,
+        Image,
         KeepTogether,
         Paragraph,
         SimpleDocTemplate,
@@ -160,6 +235,9 @@ def _write_pdf(
         Table,
         TableStyle,
     )
+
+    # Register the soft typeface up front so every style picks it up.
+    _register_fonts()
 
     primary = state.classifications[0] if state.classifications else None
     target = primary.value if primary else "unknown"
@@ -184,11 +262,11 @@ def _write_pdf(
     # ── Styles ────────────────────────────────────────────────────────────────
     def style(name: str, **kw: object) -> ParagraphStyle:
         base = dict(
-            fontName="Helvetica",
+            fontName=_FONT_BODY,
             fontSize=10,
-            leading=14,
+            leading=16,
             textColor=colors.Color(*_DARK),
-            spaceAfter=2,
+            spaceAfter=3,
         )
         base.update(kw)
         return ParagraphStyle(name, **base)
@@ -196,42 +274,42 @@ def _write_pdf(
     S = {
         "h1": style(
             "h1",
-            fontName="Helvetica-Bold",
+            fontName=_FONT_BOLD,
             fontSize=20,
-            leading=24,
+            leading=25,
             textColor=colors.Color(*_ACCENT),
-            spaceAfter=2,
+            spaceAfter=3,
         ),
-        "meta": style("meta", fontSize=9, textColor=colors.Color(*_MID)),
+        "meta": style("meta", fontSize=9, leading=14, textColor=colors.Color(*_MID)),
         "h2": style(
             "h2",
-            fontName="Helvetica-Bold",
+            fontName=_FONT_MEDIUM,
             fontSize=13,
-            leading=17,
+            leading=18,
             textColor=colors.Color(*_ACCENT),
-            spaceBefore=10,
-            spaceAfter=4,
+            spaceBefore=12,
+            spaceAfter=5,
         ),
         "h3": style(
             "h3",
-            fontName="Helvetica-Bold",
-            fontSize=10,
-            leading=14,
+            fontName=_FONT_MEDIUM,
+            fontSize=10.5,
+            leading=15,
             textColor=colors.Color(*_DARK),
-            spaceBefore=6,
-            spaceAfter=2,
+            spaceBefore=7,
+            spaceAfter=3,
         ),
-        "body": style("body", leading=15),
-        "bullet": style("bullet", leftIndent=12, bulletIndent=0, leading=15),
+        "body": style("body", leading=16),
+        "bullet": style("bullet", leftIndent=12, bulletIndent=0, leading=16),
         "check": style(
             "check",
-            fontName="Helvetica",
-            fontSize=9,
-            leading=14,
+            fontName=_FONT_BODY,
+            fontSize=9.5,
+            leading=16,
             leftIndent=12,
             textColor=colors.Color(*_DARK),
         ),
-        "small": style("small", fontSize=8, textColor=colors.Color(*_MID)),
+        "small": style("small", fontSize=8, leading=12, textColor=colors.Color(*_MID)),
     }
 
     def hr():
@@ -239,8 +317,8 @@ def _write_pdf(
             width="100%",
             thickness=0.5,
             color=colors.Color(*_LIGHT),
-            spaceAfter=6,
-            spaceBefore=2,
+            spaceAfter=8,
+            spaceBefore=4,
         )
 
     def h2(text):
@@ -256,7 +334,10 @@ def _write_pdf(
         return Paragraph(f"• &nbsp;{text}", S["bullet"])
 
     def checkbox(text):
-        return Paragraph(f"☐ &nbsp;{_rem_item(text)}", S["check"])
+        # Nunito has no checkbox glyph; a bracketed marker reads as a to-do and
+        # renders cleanly in the soft face.
+        mark = f'<font name="{_FONT_MEDIUM}">[ ]</font>'
+        return Paragraph(f"{mark} &nbsp;{_rem_item(text)}", S["check"])
 
     def space(h=4):
         return Spacer(1, h * mm)
@@ -264,12 +345,40 @@ def _write_pdf(
     # ── Build story ───────────────────────────────────────────────────────────
     story = []
 
-    # Title block
-    story += [
+    # Header band — logo (left) beside the title, on a gentle tinted panel.
+    title_cell = [
         Paragraph("Privacy OSINT Report", S["h1"]),
         Paragraph(f"Target: <b>{target}</b> &nbsp;·&nbsp; Generated: {ts}", S["meta"]),
-        space(3),
     ]
+    logo_cell: object = ""
+    if _LOGO_PATH.exists():
+        try:
+            # ~22mm (~83px) tall, aspect preserved — a soft, unobtrusive mark.
+            logo = Image(str(_LOGO_PATH), width=22 * mm, height=22 * mm)
+            logo.hAlign = "CENTER"
+            logo_cell = logo
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("logo unavailable: %s", exc)
+            logo_cell = ""
+
+    header = Table(
+        [[logo_cell, title_cell]],
+        colWidths=[26 * mm, W - 26 * mm],
+    )
+    header.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.Color(*_BAND)),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+                ("ROUNDEDCORNERS", [6]),
+            ]
+        )
+    )
+    story += [header, space(5)]
 
     # Risk score banner
     banner_data = [
@@ -278,8 +387,9 @@ def _write_pdf(
                 "RISK SCORE",
                 style(
                     "rs_label",
-                    fontName="Helvetica-Bold",
+                    fontName=_FONT_MEDIUM,
                     fontSize=8,
+                    leading=11,
                     textColor=colors.white,
                     alignment=TA_CENTER,
                 ),
@@ -288,8 +398,9 @@ def _write_pdf(
                 f"{risk_scr}/100",
                 style(
                     "rs_score",
-                    fontName="Helvetica-Bold",
+                    fontName=_FONT_BOLD,
                     fontSize=22,
+                    leading=26,
                     textColor=colors.white,
                     alignment=TA_CENTER,
                 ),
@@ -298,8 +409,9 @@ def _write_pdf(
                 risk_lvl,
                 style(
                     "rs_level",
-                    fontName="Helvetica-Bold",
+                    fontName=_FONT_MEDIUM,
                     fontSize=14,
+                    leading=18,
                     textColor=colors.white,
                     alignment=TA_CENTER,
                 ),
@@ -313,9 +425,9 @@ def _write_pdf(
                 ("BACKGROUND", (0, 0), (-1, -1), risk_col),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ("ROUNDEDCORNERS", [4]),
+                ("TOPPADDING", (0, 0), (-1, -1), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+                ("ROUNDEDCORNERS", [8]),
             ]
         )
     )
@@ -367,9 +479,11 @@ def _write_pdf(
     if top_risks:
         story += [hr(), h2("Top Risks")]
         for risk in top_risks:
+            # A soft coloured dot in the high-risk clay tone — a gentle signal,
+            # and one Nunito can render (the warning glyph it cannot).
             story.append(
                 bullet(
-                    f'<font color="#{int(_RED[0]*255):02x}{int(_RED[1]*255):02x}{int(_RED[2]*255):02x}">⚠</font> &nbsp;{risk}'
+                    f'<font color="#{int(_RED[0]*255):02x}{int(_RED[1]*255):02x}{int(_RED[2]*255):02x}">•</font> &nbsp;{risk}'
                 )
             )
         story.append(space(2))
@@ -577,7 +691,9 @@ def _write_pdf(
     if no_action:
         block = [h3("No Action Available")]
         for item in no_action:
-            block.append(Paragraph(f"ℹ &nbsp;{item}", S["check"]))
+            # Soft grey dot — Nunito has no info glyph; this reads as a note.
+            dot = f'<font color="#{int(_MID[0]*255):02x}{int(_MID[1]*255):02x}{int(_MID[2]*255):02x}">•</font>'
+            block.append(Paragraph(f"{dot} &nbsp;{item}", S["check"]))
         block.append(space(2))
         story.append(KeepTogether(block))
 
@@ -697,8 +813,10 @@ def _write_pdf(
         tbl = Table(
             [
                 [
-                    Paragraph(r, style("tc", fontName="Helvetica-Bold", fontSize=9)),
-                    Paragraph(v, style("tv", fontSize=9)),
+                    Paragraph(
+                        r, style("tc", fontName=_FONT_MEDIUM, fontSize=9, leading=13)
+                    ),
+                    Paragraph(v, style("tv", fontSize=9, leading=13)),
                 ]
                 for r, v in tool_rows
             ],
@@ -707,7 +825,6 @@ def _write_pdf(
         tbl.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.Color(*_ACCENT)),
                     (
                         "ROWBACKGROUNDS",
                         (0, 0),
@@ -715,12 +832,13 @@ def _write_pdf(
                         [colors.Color(*_LIGHT), colors.white],
                     ),
                     ("TEXTCOLOR", (0, 0), (-1, -1), colors.Color(*_DARK)),
-                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (0, 0), (0, -1), _FONT_MEDIUM),
                     ("FONTSIZE", (0, 0), (-1, -1), 9),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("GRID", (0, 0), (-1, -1), 0.3, colors.Color(*_LIGHT)),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("LINEBELOW", (0, 0), (-1, -2), 0.4, colors.Color(*_LIGHT)),
                 ]
             )
         )
