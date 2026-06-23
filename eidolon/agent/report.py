@@ -111,7 +111,12 @@ def _clean_cred_hash(h: str) -> tuple[str, str]:
     from eidolon.tools.dehashed import _hash_type
 
     raw = (h or "").split("||")[0].split(":")[0].strip()
-    algo = h.split("||")[-1].strip() if "||" in (h or "") else _hash_type(raw)
+    if "||" in (h or ""):
+        # rsplit + strip pipes: some salts themselves end in '|', so a plain
+        # split("||")[-1] would leave a stray pipe on the algorithm label.
+        algo = h.rsplit("||", 1)[-1].strip().strip("|").strip()
+    else:
+        algo = _hash_type(raw)
     return raw, algo
 
 
@@ -1134,11 +1139,12 @@ def write_report(state: PipelineState) -> str:
                         f"{r.data.get('total_vulns', 0)} CVEs"
                     )
                 elif r.tool == "phone_lookup" and r.data.get("valid"):
-                    carrier = (r.data.get("carrier") or {}).get("name", "unknown")
+                    carrier = (r.data.get("carrier") or {}).get("name") or "unknown"
+                    loc = r.data.get("location") or r.data.get("country_code") or ""
+                    where = f", registered in {loc}" if loc else ""
                     lines.append(
                         f"- **Phone `{r.input_value}`** — "
-                        f"{r.data.get('line_type', '?')} via {carrier}, "
-                        f"registered in {r.data.get('location', '?')}"
+                        f"{r.data.get('line_type', '?')} via {carrier}{where}"
                     )
                 elif r.tool == "hibp":
                     lines.append(

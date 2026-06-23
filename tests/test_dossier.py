@@ -58,6 +58,9 @@ def test_clean_cred_hash_strips_dehashed_suffix():
     # plain hash with no suffix → algo inferred from length
     h2, algo2 = _clean_cred_hash("8087f27e41a1de0ce70b641cae2a88c4")
     assert h2 == "8087f27e41a1de0ce70b641cae2a88c4" and algo2 == "MD5"
+    # a salt that itself ends in '|' must not leak a stray pipe into the algo
+    h3, algo3 = _clean_cred_hash("900352ae4991c67836a94cde9822dd5c:saltend|||MD5")
+    assert h3 == "900352ae4991c67836a94cde9822dd5c" and algo3 == "MD5"
 
 
 # ── dossier rendering ─────────────────────────────────────────────────────────
