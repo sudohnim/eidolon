@@ -417,6 +417,66 @@ def _write_pdf(
             block.append(space(2))
             story.append(KeepTogether(block))
 
+    # Your Content in the AI Training Pile (Common Crawl) — honest framing:
+    # Common Crawl is the raw web archive training sets are built FROM; a hit
+    # does NOT mean any model memorized or trained on the person.
+    cc = (
+        state.commoncrawl_result.data
+        if (state.commoncrawl_result and state.commoncrawl_result.success)
+        else {}
+    )
+    if cc.get("present"):
+        from xml.sax.saxutils import escape
+
+        matched = cc.get("matched") or []
+        total = cc.get("total_captures", 0)
+        index_id = cc.get("index_id", "")
+        story += [hr(), h2("Your Content in the AI Training Pile")]
+        story.append(
+            body(
+                "Common Crawl is a free, openly published archive of the public web "
+                "&mdash; the raw corpus that most AI training sets (like Google's C4) "
+                "are filtered and built FROM. Your pages showing up here means your "
+                "public content is in that upstream pile. It does <b>not</b> mean any "
+                "specific AI model memorized you or was trained on you &mdash; only "
+                "that your content is in the corpus training data is sourced from."
+            )
+        )
+        story.append(space(2))
+        block = [
+            h3(f"Found in {len(matched)} web property(ies) — {total} page capture(s)")
+        ]
+        for m in matched:
+            target = escape(str(m.get("target", "")))
+            count = m.get("capture_count", 0)
+            sample = escape(str(m.get("sample_url", "")))
+            line = f"<b>{target}</b> — {count} page capture(s)"
+            if sample:
+                line += f" (e.g. {sample})"
+            block.append(bullet(line))
+        if index_id:
+            block.append(body(f"<i>Common Crawl index: {escape(str(index_id))}</i>"))
+        block.append(space(2))
+        story.append(KeepTogether(block))
+        opt_out = [
+            h3("How to opt out of future AI training crawls"),
+            bullet(
+                "Register your content with Spawning's <b>Do Not Train</b> registry "
+                "at haveibeentrained.com (spawning.ai) so participating AI trainers "
+                "skip it."
+            ),
+            bullet(
+                "Add an <b>ai.txt</b> file to your site (and robots rules) to signal "
+                "that AI crawlers should not collect your pages going forward."
+            ),
+            body(
+                "<i>Note: opting out only affects future crawls. It cannot remove "
+                "your content from copies already in existing archives or datasets.</i>"
+            ),
+            space(2),
+        ]
+        story.append(KeepTogether(opt_out))
+
     # Findings context — split into three buckets
     findings = analysis.get("findings_context") or []
     active_removable = [
@@ -849,6 +909,59 @@ def write_report(state: PipelineState) -> str:
             lines.append(f"{ref_line} · [details]({url})" if url else f"{ref_line}  ")
             lines.append("")
 
+    # Your Content in the AI Training Pile (Common Crawl) — honest framing:
+    # Common Crawl is the raw web archive training sets are built FROM; a hit
+    # does NOT mean any model memorized or trained on the person.
+    cc = (
+        state.commoncrawl_result.data
+        if (state.commoncrawl_result and state.commoncrawl_result.success)
+        else {}
+    )
+    if cc.get("present"):
+        matched = cc.get("matched") or []
+        total = cc.get("total_captures", 0)
+        index_id = cc.get("index_id", "")
+        lines += ["---", "", "## Your Content in the AI Training Pile", ""]
+        lines.append(
+            "_Common Crawl is a free, openly published archive of the public web — "
+            "the raw corpus that most AI training sets (like Google's C4) are "
+            "filtered and built FROM. Your pages showing up here means your public "
+            "content is in that upstream pile. It does **not** mean any specific AI "
+            "model memorized you or was trained on you — only that your content is in "
+            "the corpus training data is sourced from._"
+        )
+        lines.append("")
+        lines.append(
+            f"Found in {len(matched)} web property(ies) — {total} page capture(s)"
+            + (f" (index {index_id})" if index_id else "")
+            + ":"
+        )
+        lines.append("")
+        for m in matched:
+            target = m.get("target", "")
+            count = m.get("capture_count", 0)
+            sample = m.get("sample_url", "")
+            line = f"- **{target}** — {count} page capture(s)"
+            if sample:
+                line += f" (e.g. {sample})"
+            lines.append(line)
+        lines.append("")
+        lines += ["### How to opt out of future AI training crawls", ""]
+        lines.append(
+            "- Register your content with Spawning's **Do Not Train** registry at "
+            "<https://haveibeentrained.com> (spawning.ai) so participating AI "
+            "trainers skip it."
+        )
+        lines.append(
+            "- Add an **ai.txt** file to your site (and robots rules) to signal that "
+            "AI crawlers should not collect your pages going forward."
+        )
+        lines.append(
+            "- _Opting out only affects future crawls. It cannot remove content "
+            "already in existing archives or datasets._"
+        )
+        lines.append("")
+
     mech_labels_md = {
         "gdpr": "GDPR erasure (EU/UK)",
         "ccpa": "CCPA deletion (US)",
@@ -1108,6 +1221,14 @@ def write_report(state: PipelineState) -> str:
                     f"  - {rec.get('role','?').title()} at **{rec.get('company_name')}** "
                     f"({rec.get('jurisdiction','?')}, {rec.get('status','?')})"
                 )
+    if state.commoncrawl_result and state.commoncrawl_result.success:
+        d = state.commoncrawl_result.data
+        if d.get("present"):
+            lines.append(
+                f"- **Common Crawl:** present in the public web archive — "
+                f"{len(d.get('matched') or [])} property(ies), "
+                f"{d.get('total_captures',0)} page capture(s)"
+            )
 
     if state.correlation_results:
         successful = [r for r in state.correlation_results if r.success]
