@@ -1,0 +1,19 @@
+{
+  "present": true,
+  "matched": [
+    {
+      "target": "janedoe.com",
+      "capture_count": 27,
+      "sample_url": "https://janedoe.com/about",
+      "sample_timestamp": "20260518094233"
+    },
+    {
+      "target": "https://github.com/janedoe",
+      "capture_count": 4,
+      "sample_url": "https://github.com/janedoe",
+      "sample_timestamp": "20260502173011"
+    }
+  ],
+  "total_captures": 31,
+  "index_id": "CC-MAIN-2026-22"
+}
