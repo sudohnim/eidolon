@@ -8,8 +8,8 @@
         "headline": "Someone collects your leaked logins to break into your accounts",
         "tactic": "Reconnaissance",
         "tactic_id": "TA0043",
-        "what_it_is": "Collecting a target's leaked usernames and passwords from breach dumps to prepare account-takeover attacks.",
-        "why_this_finding": "Your password (or its hash) was exposed in one or more breaches, handing an attacker a credential to try directly or crack offline.",
+        "what_it_is": "Someone gathers the usernames and passwords that have leaked from past data breaches, then keeps them handy to try logging in as you later.",
+        "why_this_finding": "Your password (or a scrambled version of it) turned up in one or more leaks. That gives a stranger something concrete to try when attempting to sign in as you.",
         "url": "https://attack.mitre.org/techniques/T1589/001/"
       },
       {
@@ -18,8 +18,8 @@
         "headline": "Someone reuses your leaked password on your other accounts",
         "tactic": "Credential Access",
         "tactic_id": "TA0006",
-        "what_it_is": "Replaying a leaked email+password pair against many other sites, betting the password was reused.",
-        "why_this_finding": "Your credentials are in public breach dumps, so an attacker can stuff them into other services you use — anywhere you reused that password is exposed.",
+        "what_it_is": "Someone takes one leaked email-and-password pair and tries it on lots of other websites, hoping you used the same password in more than one place.",
+        "why_this_finding": "Your login details are out in the open, so a stranger can try your leaked password on the other sites and apps you use. Anywhere you reused that password could be opened.",
         "url": "https://attack.mitre.org/techniques/T1110/004/"
       }
     ],
@@ -30,8 +30,8 @@
         "headline": "Malware grabbed every password saved in your browser",
         "tactic": "Credential Access",
         "tactic_id": "TA0006",
-        "what_it_is": "Stealing passwords saved in web browsers, password managers, and the OS keychain.",
-        "why_this_finding": "Infostealer malware that ran on the victim's machine dumped every password the browser had saved at once — not one site's password, the whole store.",
+        "what_it_is": "Taking all the passwords you've saved in your web browser, your password app, or your computer's built-in keychain in one go.",
+        "why_this_finding": "A piece of malware ran on a computer linked to you and copied every password the browser had remembered at once — not just one site, but the whole saved collection.",
         "url": "https://attack.mitre.org/techniques/T1555/"
       },
       {
@@ -40,8 +40,8 @@
         "headline": "Someone slips into your logged-in sessions, even with 2FA on",
         "tactic": "Credential Access",
         "tactic_id": "TA0006",
-        "what_it_is": "Stealing a browser's active session cookies to hijack a logged-in session without the password or a 2FA prompt.",
-        "why_this_finding": "The same malware exfiltrated live session cookies, so an attacker can resume an authenticated session even with 2FA enabled.",
+        "what_it_is": "Copying the little 'you're still signed in' tokens your browser keeps after you log in, so someone can step into your open session without ever needing your password or a verification code.",
+        "why_this_finding": "The same malware also copied your active sign-in tokens. That can let a stranger pick up where you left off in an account that's already logged in, even if you have two-step verification turned on.",
         "url": "https://attack.mitre.org/techniques/T1539/"
       },
       {
@@ -50,8 +50,8 @@
         "headline": "Someone logs into your real accounts as if they were you",
         "tactic": "Initial Access",
         "tactic_id": "TA0001",
-        "what_it_is": "Logging in with legitimate stolen credentials instead of breaking in — the activity looks normal and is hard to detect.",
-        "why_this_finding": "With the stolen passwords and cookies, an attacker signs in to the victim's real accounts directly; there is nothing to 'exploit' and little to flag.",
+        "what_it_is": "Simply signing in with your real, stolen login instead of forcing a way in. Because it looks like a normal login, it's easy to miss.",
+        "why_this_finding": "With your stolen passwords and sign-in tokens, a stranger can log straight into your real accounts as if they were you. Nothing looks obviously broken, so it can go unnoticed.",
         "url": "https://attack.mitre.org/techniques/T1078/"
       }
     ]
