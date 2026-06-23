@@ -1,6 +1,9 @@
 [project]
-name = "osint-agent"
+name = "eidolon"
 version = "0.1.0"
+description = "Local, privacy-first, MCP-native OSINT exposure scanner."
+readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11,<3.14"
 dependencies = [
     "langgraph>=0.2.0",
@@ -34,6 +37,10 @@ dev = [
     "isort>=5.13.0",
     "mypy>=1.9.0",
 ]
+
+[project.scripts]
+eidolon = "eidolon.main:main"
+eidolon-mcp = "eidolon.mcp.__main__:main"
 
 [build-system]
 requires = ["hatchling"]
