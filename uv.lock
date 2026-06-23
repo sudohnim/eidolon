@@ -607,6 +607,73 @@ wheels = [
 ]
 
 [[package]]
+name = "eidolon"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "apify-client" },
+    { name = "chardet" },
+    { name = "ghunt" },
+    { name = "holehe" },
+    { name = "langchain" },
+    { name = "langchain-ollama" },
+    { name = "langgraph" },
+    { name = "maigret" },
+    { name = "mcp" },
+    { name = "phonenumbers" },
+    { name = "pillow" },
+    { name = "playwright" },
+    { name = "pydantic", extra = ["email"] },
+    { name = "python-dotenv" },
+    { name = "reportlab" },
+    { name = "requests" },
+    { name = "shodan" },
+    { name = "structlog" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "black" },
+    { name = "flake8" },
+    { name = "isort" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.14.0" },
+    { name = "apify-client", specifier = ">=3.0.2" },
+    { name = "black", marker = "extra == 'dev'", specifier = ">=24.4.0" },
+    { name = "chardet", specifier = ">=7.4.3" },
+    { name = "flake8", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "ghunt", specifier = "==2.3.3" },
+    { name = "holehe", specifier = ">=1.61" },
+    { name = "isort", marker = "extra == 'dev'", specifier = ">=5.13.0" },
+    { name = "langchain", specifier = ">=0.3.0" },
+    { name = "langchain-ollama", specifier = ">=0.2.0" },
+    { name = "langgraph", specifier = ">=0.2.0" },
+    { name = "maigret", specifier = ">=0.6.1" },
+    { name = "mcp", specifier = ">=1.2.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.9.0" },
+    { name = "phonenumbers", specifier = ">=8.13.0" },
+    { name = "pillow", specifier = ">=10.4.0" },
+    { name = "playwright", specifier = ">=1.44.0" },
+    { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "pydantic", extras = ["email"], specifier = ">=2.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "reportlab", specifier = ">=4.5.1" },
+    { name = "requests", specifier = ">=2.31.0" },
+    { name = "shodan", specifier = ">=1.31.0" },
+    { name = "structlog", specifier = ">=24.1.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "email-validator"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1927,73 +1994,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/7b/e8/0fb45f57a2ada1fed374f7494c8cd55e2f88ccd0ab0a669aa3468716bf5f/ormsgpack-1.12.2-cp313-cp313-win_amd64.whl", hash = "sha256:21f4276caca5c03a818041d637e4019bc84f9d6ca8baa5ea03e5cc8bf56140e9", size = 117459, upload-time = "2026-01-18T20:55:56.876Z" },
     { url = "https://files.pythonhosted.org/packages/7a/d4/0cfeea1e960d550a131001a7f38a5132c7ae3ebde4c82af1f364ccc5d904/ormsgpack-1.12.2-cp313-cp313-win_arm64.whl", hash = "sha256:baca4b6773d20a82e36d6fd25f341064244f9f86a13dead95dd7d7f996f51709", size = 111577, upload-time = "2026-01-18T20:55:43.605Z" },
 ]
-
-[[package]]
-name = "osint-agent"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "apify-client" },
-    { name = "chardet" },
-    { name = "ghunt" },
-    { name = "holehe" },
-    { name = "langchain" },
-    { name = "langchain-ollama" },
-    { name = "langgraph" },
-    { name = "maigret" },
-    { name = "mcp" },
-    { name = "phonenumbers" },
-    { name = "pillow" },
-    { name = "playwright" },
-    { name = "pydantic", extra = ["email"] },
-    { name = "python-dotenv" },
-    { name = "reportlab" },
-    { name = "requests" },
-    { name = "shodan" },
-    { name = "structlog" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "black" },
-    { name = "flake8" },
-    { name = "isort" },
-    { name = "mypy" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.14.0" },
-    { name = "apify-client", specifier = ">=3.0.2" },
-    { name = "black", marker = "extra == 'dev'", specifier = ">=24.4.0" },
-    { name = "chardet", specifier = ">=7.4.3" },
-    { name = "flake8", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "ghunt", specifier = "==2.3.3" },
-    { name = "holehe", specifier = ">=1.61" },
-    { name = "isort", marker = "extra == 'dev'", specifier = ">=5.13.0" },
-    { name = "langchain", specifier = ">=0.3.0" },
-    { name = "langchain-ollama", specifier = ">=0.2.0" },
-    { name = "langgraph", specifier = ">=0.2.0" },
-    { name = "maigret", specifier = ">=0.6.1" },
-    { name = "mcp", specifier = ">=1.2.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.9.0" },
-    { name = "phonenumbers", specifier = ">=8.13.0" },
-    { name = "pillow", specifier = ">=10.4.0" },
-    { name = "playwright", specifier = ">=1.44.0" },
-    { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "pydantic", extras = ["email"], specifier = ">=2.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "reportlab", specifier = ">=4.5.1" },
-    { name = "requests", specifier = ">=2.31.0" },
-    { name = "shodan", specifier = ">=1.31.0" },
-    { name = "structlog", specifier = ">=24.1.0" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "outcome"
