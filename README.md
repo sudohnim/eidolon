@@ -27,6 +27,8 @@ Tools: `scan_target`, `list_scans`, `get_report`, `reveal_credentials`. The leak
 - A running [SpiderFoot](https://github.com/smicallef/spiderfoot) instance (optional — Eidolon degrades gracefully if it's unreachable)
 - API keys — see [`.env.example`](.env.example). HIBP, Apify, and Scrapfly are required; the rest are optional and skip gracefully.
 
+**New here? Start with the [Setup & Configuration guide](docs/SETUP_CHECKLIST.md)** — which keys to get, what each one costs, and what it unlocks.
+
 ## Quickstart
 
 ```bash
