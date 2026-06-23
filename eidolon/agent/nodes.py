@@ -1,3 +1,4 @@
+import ipaddress
 import json
 import logging
 import re
@@ -1350,6 +1351,28 @@ def correlation_planner_node(state: PipelineState) -> PipelineState:
         return state.model_copy(update={"correlation_plan": deterministic})
 
 
+def _valid_pivot_value(ptype: str, pvalue: str) -> bool:
+    """Sanity-check an LLM-planned pivot value before sending it to a tool.
+
+    The correlation planner is an LLM and occasionally emits a description
+    instead of a concrete value (e.g. an "ip" pivot whose value is
+    "IP addresses found in breaches (e.g. Apollo, DataCamp)"). Validate the
+    cheap, unambiguous cases so we don't waste a lookup on garbage; leave the
+    free-form types (username/name) permissive to avoid dropping good pivots.
+    """
+    if ptype == "ip":
+        try:
+            ipaddress.ip_address(pvalue)
+            return True
+        except ValueError:
+            return False
+    if ptype == "email":
+        return "@" in pvalue and "." in pvalue.rsplit("@", 1)[-1]
+    if ptype == "phone":
+        return sum(c.isdigit() for c in pvalue) >= 7
+    return True
+
+
 def correlation_execute_node(state: PipelineState) -> PipelineState:
     """Execute each planned pivot sequentially and collect results.
 
@@ -1377,6 +1400,12 @@ def correlation_execute_node(state: PipelineState) -> PipelineState:
         ptype = pivot.get("type", "")
         pvalue = (pivot.get("value") or "").strip()
         if not pvalue:
+            continue
+
+        if not _valid_pivot_value(ptype, pvalue):
+            logger.warning(
+                "correlation: dropping malformed %s pivot value=%r", ptype, pvalue
+            )
             continue
 
         key = (ptype, pvalue.lower())

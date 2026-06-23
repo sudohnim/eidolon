@@ -612,6 +612,34 @@ class TestDeterministicPivots:
         assert _extract_deterministic_pivots(state) == []
 
 
+class TestPivotValueValidation:
+    """_valid_pivot_value guards against LLM-hallucinated pivot values."""
+
+    def test_ip_pivot_requires_real_ip(self):
+        from eidolon.agent.nodes import _valid_pivot_value
+
+        assert _valid_pivot_value("ip", "8.8.8.8")
+        assert _valid_pivot_value("ip", "2001:4860:4860::8888")
+        # the real-world bug: a description instead of an IP
+        assert not _valid_pivot_value(
+            "ip", "IP addresses found in breaches (e.g. Apollo, DataCamp)"
+        )
+
+    def test_email_and_phone_pivots_sanity_checked(self):
+        from eidolon.agent.nodes import _valid_pivot_value
+
+        assert _valid_pivot_value("email", "a@b.com")
+        assert not _valid_pivot_value("email", "no address here")
+        assert _valid_pivot_value("phone", "+1 214 335 4529")
+        assert not _valid_pivot_value("phone", "her mobile number")
+
+    def test_freeform_types_stay_permissive(self):
+        from eidolon.agent.nodes import _valid_pivot_value
+
+        assert _valid_pivot_value("username", "minhvmai")
+        assert _valid_pivot_value("name", "minh v mai")
+
+
 class TestToolResultEnvelope:
     def test_error_result_shape(self):
         import json
