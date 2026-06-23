@@ -35,6 +35,7 @@ class MitreInput(BaseModel):
 class MitreTechnique(BaseModel):
     technique_id: str  # "T1555"
     name: str  # "Credentials from Password Stores"
+    headline: str = ""  # plain-English title for non-technical readers
     tactic: str  # "Credential Access"
     tactic_id: str  # "TA0006"
     severity: Severity = "medium"

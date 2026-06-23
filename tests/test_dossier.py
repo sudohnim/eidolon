@@ -88,7 +88,7 @@ def test_dossier_renders_real_records():
         ]
     )
     out = "\n".join(_dossier_lines(state))
-    assert "## Leaked Credentials" in out
+    assert "## Your Actual Leaked Data" in out
     assert "password: nichole" in out
     assert "username: sunshineaura7" in out
     assert "Empty" not in out  # record with no credential is skipped

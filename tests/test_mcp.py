@@ -36,11 +36,11 @@ def test_all_four_tools_registered():
 def test_strip_dossier_removes_section_and_keeps_neighbors():
     md = (
         "# Privacy OSINT Report\n\n## What\n\nx\n\n---\n\n"
-        "## Leaked Credentials\n\n### SomeDB\n- password: hunter2\n\n---\n\n"
+        "## Your Actual Leaked Data\n\n### SomeDB\n- password: hunter2\n\n---\n\n"
         "## Top Risks\n\n- y\n"
     )
     out = server._strip_dossier(md)
-    assert "## Leaked Credentials" not in out
+    assert "## Your Actual Leaked Data" not in out
     assert "hunter2" not in out  # the actual secret is gone
     assert "## What" in out and "## Top Risks" in out  # neighbors intact
     assert "reveal_credentials" in out  # points the user at the gate
@@ -51,7 +51,7 @@ def test_get_report_redacts_dossier_but_reveal_exposes_it():
 
     md = server.get_report(res.scan_id, "md")
     assert "# Privacy OSINT Report" in md
-    assert "## Leaked Credentials" not in md  # redacted by default
+    assert "## Your Actual Leaked Data" not in md  # redacted by default
 
     creds = server.reveal_credentials(res.scan_id)
     assert isinstance(creds, str)  # dossier or a "none on record" message

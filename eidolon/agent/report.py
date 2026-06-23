@@ -81,7 +81,7 @@ def _dossier_lines(state: PipelineState) -> list[str]:
     lines = [
         "---",
         "",
-        "## Leaked Credentials",
+        "## Your Actual Leaked Data",
         "",
         "_Actual records found in breach dumps for this exact mailbox — "
         f"{n} record(s) across {len(records)} source(s). "
@@ -331,9 +331,9 @@ def _write_pdf(
         ("handles_and_usernames", "Usernames & Handles"),
         ("platforms_with_accounts", "Accounts Found"),
         ("physical_data", "Physical Data Exposed"),
-        ("credentials_exposed", "Credentials in Circulation"),
+        ("credentials_exposed", "Passwords That Have Leaked"),
         ("google_footprint", "Google Footprint"),
-        ("breach_history", "Breach History"),
+        ("breach_history", "Where Your Data Has Shown Up"),
     ]
     for key, title in sections:
         items = known.get(key) or []
@@ -349,7 +349,7 @@ def _write_pdf(
     if dossier:
         from xml.sax.saxutils import escape
 
-        story += [hr(), h2("Leaked Credentials")]
+        story += [hr(), h2("Your Actual Leaked Data")]
         story.append(
             body(
                 "Actual records found in breach dumps for this exact mailbox. "
@@ -385,27 +385,23 @@ def _write_pdf(
     if techniques:
         from xml.sax.saxutils import escape
 
-        story += [hr(), h2("Threat Model (MITRE ATT&CK)")]
+        story += [hr(), h2("What Someone Could Do With This")]
         story.append(
             body(
-                f"<i>{mitre.get('technique_count', 0)} attacker technique(s) your "
-                f"exposure enables, across "
-                f"{escape(', '.join(mitre.get('tactics_covered') or []))}. "
-                f"MITRE ATT&CK is a public catalog of real adversary behaviour "
-                f"(attack.mitre.org).</i>"
+                f"<i>{mitre.get('technique_count', 0)} thing(s) a stranger could "
+                f"realistically try with what's already exposed. (These map to MITRE "
+                f"ATT&CK, a standard catalog of real-world attacker behaviour — the "
+                f"codes are just for reference.)</i>"
             )
         )
         story.append(space(2))
         for t in techniques:
             sev = (t.get("severity") or "").upper()
-            head = (
-                f"{escape(str(t.get('technique_id')))} — "
-                f"{escape(str(t.get('name')))}  ·  {escape(str(t.get('tactic')))}"
-                + (f"  ·  {sev}" if sev else "")
-            )
+            title = t.get("headline") or t.get("name")
+            head = escape(str(title)) + (f"  ·  {sev}" if sev else "")
             block = [h3(head)]
             if t.get("what_it_is"):
-                block.append(body(f"<b>What it is:</b> {escape(t['what_it_is'])}"))
+                block.append(body(f"<b>What this means:</b> {escape(t['what_it_is'])}"))
             if t.get("why_this_finding"):
                 block.append(
                     body(
@@ -414,10 +410,10 @@ def _write_pdf(
                 )
             if t.get("evidence"):
                 block.append(
-                    body(f"<b>Evidence:</b> {escape('; '.join(t['evidence']))}")
+                    body(f"<b>Based on:</b> {escape('; '.join(t['evidence']))}")
                 )
-            if t.get("url"):
-                block.append(body(f"<b>Learn more:</b> {escape(t['url'])}"))
+            ref = f"{t.get('technique_id')} {t.get('name')} ({t.get('tactic')})"
+            block.append(body(f"<i>MITRE reference: {escape(ref)}</i>"))
             block.append(space(2))
             story.append(KeepTogether(block))
 
@@ -800,9 +796,9 @@ def write_report(state: PipelineState) -> str:
         ("handles_and_usernames", "Usernames & Handles"),
         ("platforms_with_accounts", "Accounts Found"),
         ("physical_data", "Physical Data Exposed"),
-        ("credentials_exposed", "Credentials in Circulation"),
+        ("credentials_exposed", "Passwords That Have Leaked"),
         ("google_footprint", "Google Footprint"),
-        ("breach_history", "Breach History"),
+        ("breach_history", "Where Your Data Has Shown Up"),
     ]:
         items = known.get(key) or []
         if items:
@@ -829,29 +825,28 @@ def write_report(state: PipelineState) -> str:
     )
     techniques = mitre.get("techniques") or []
     if techniques:
-        lines += ["---", "", "## Threat Model (MITRE ATT&CK)", ""]
+        lines += ["---", "", "## What Someone Could Do With This", ""]
         lines.append(
-            f"_{mitre.get('technique_count', 0)} attacker technique(s) your exposure "
-            f"enables, across {', '.join(mitre.get('tactics_covered') or [])}. "
-            f"MITRE ATT&CK is a public catalog of real adversary behaviour "
-            f"(attack.mitre.org)._"
+            f"_{mitre.get('technique_count', 0)} thing(s) a stranger could "
+            f"realistically try with what's already exposed. (These map to MITRE "
+            f"ATT&CK, a standard catalog of real-world attacker behaviour — the "
+            f"codes are just for reference.)_"
         )
         lines.append("")
         for t in techniques:
             sev = (t.get("severity") or "").upper()
-            lines += [
-                f"### {t.get('technique_id')} — {t.get('name')}"
-                f"  ·  {t.get('tactic')}" + (f"  ·  {sev}" if sev else ""),
-                "",
-            ]
+            title = t.get("headline") or t.get("name")
+            lines += [f"### {title}" + (f"  ·  {sev}" if sev else ""), ""]
             if t.get("what_it_is"):
-                lines.append(f"**What it is:** {t['what_it_is']}  ")
+                lines.append(f"**What this means:** {t['what_it_is']}  ")
             if t.get("why_this_finding"):
                 lines.append(f"**Why it applies to you:** {t['why_this_finding']}  ")
             if t.get("evidence"):
-                lines.append(f"**Evidence:** {'; '.join(t['evidence'])}  ")
-            if t.get("url"):
-                lines.append(f"**Learn more:** {t['url']}")
+                lines.append(f"**Based on:** {'; '.join(t['evidence'])}  ")
+            ref = f"{t.get('technique_id')} {t.get('name')} ({t.get('tactic')})"
+            url = t.get("url")
+            ref_line = f"_MITRE reference: {ref}_"
+            lines.append(f"{ref_line} · [details]({url})" if url else f"{ref_line}  ")
             lines.append("")
 
     mech_labels_md = {
@@ -1000,7 +995,7 @@ def write_report(state: PipelineState) -> str:
             lines.append(f"- ℹ️ {item}")
         lines.append("")
 
-    lines += ["---", "", "## Raw Tool Results", ""]
+    lines += ["---", "", "## Where We Looked", ""]
     if state.hibp_result and state.hibp_result.success:
         lines.append(
             f"- **HIBP:** {state.hibp_result.data.get('breach_count',0)} breaches"
@@ -1117,7 +1112,7 @@ def write_report(state: PipelineState) -> str:
     if state.correlation_results:
         successful = [r for r in state.correlation_results if r.success]
         if successful:
-            lines += ["", "### Correlation Pivots"]
+            lines += ["", "### Follow-Up Checks"]
             for r in successful:
                 if r.tool == "maigret":
                     lines.append(

@@ -88,10 +88,13 @@ def reveal_credentials(scan_id: str) -> str:
 
 
 def _strip_dossier(md: str) -> str:
-    """Remove the '## Leaked Credentials' section from a rendered markdown report."""
+    """Remove the leaked-data dossier section from a rendered markdown report.
+
+    Keep this heading in sync with report.py's dossier heading.
+    """
     lines = md.splitlines()
     start = next(
-        (i for i, ln in enumerate(lines) if ln.strip() == "## Leaked Credentials"),
+        (i for i, ln in enumerate(lines) if ln.strip() == "## Your Actual Leaked Data"),
         None,
     )
     if start is None:

@@ -5,6 +5,7 @@
       {
         "technique_id": "T1589.001",
         "name": "Gather Victim Identity Information: Credentials",
+        "headline": "Someone collects your leaked logins to break into your accounts",
         "tactic": "Reconnaissance",
         "tactic_id": "TA0043",
         "what_it_is": "Collecting a target's leaked usernames and passwords from breach dumps to prepare account-takeover attacks.",
@@ -14,6 +15,7 @@
       {
         "technique_id": "T1110.004",
         "name": "Brute Force: Credential Stuffing",
+        "headline": "Someone reuses your leaked password on your other accounts",
         "tactic": "Credential Access",
         "tactic_id": "TA0006",
         "what_it_is": "Replaying a leaked email+password pair against many other sites, betting the password was reused.",
@@ -25,6 +27,7 @@
       {
         "technique_id": "T1555",
         "name": "Credentials from Password Stores",
+        "headline": "Malware grabbed every password saved in your browser",
         "tactic": "Credential Access",
         "tactic_id": "TA0006",
         "what_it_is": "Stealing passwords saved in web browsers, password managers, and the OS keychain.",
@@ -34,6 +37,7 @@
       {
         "technique_id": "T1539",
         "name": "Steal Web Session Cookie",
+        "headline": "Someone slips into your logged-in sessions, even with 2FA on",
         "tactic": "Credential Access",
         "tactic_id": "TA0006",
         "what_it_is": "Stealing a browser's active session cookies to hijack a logged-in session without the password or a 2FA prompt.",
@@ -43,6 +47,7 @@
       {
         "technique_id": "T1078",
         "name": "Valid Accounts",
+        "headline": "Someone logs into your real accounts as if they were you",
         "tactic": "Initial Access",
         "tactic_id": "TA0001",
         "what_it_is": "Logging in with legitimate stolen credentials instead of breaking in — the activity looks normal and is hard to detect.",
