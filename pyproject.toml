@@ -49,6 +49,12 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["eidolon"]
 
+# Ship the report's soft branding assets (logo + bundled Nunito fonts) inside the
+# wheel so the PDF styling survives a packaged install. report.py also resolves
+# these from the repo root for source runs.
+[tool.hatch.build.targets.wheel.force-include]
+"assets" = "eidolon/assets"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
