@@ -23,6 +23,7 @@ FPS_BASE = "https://www.fastpeoplesearch.com/name"
 
 class FastPeopleSearch(Tool[BrokerScanInput, BrokerProfilesOutput]):
     name = "fastpeoplesearch"
+    requires = ["SCRAPFLY_API_KEY"]
     input_type = "name"
     input_schema = BrokerScanInput
     output_schema = BrokerProfilesOutput

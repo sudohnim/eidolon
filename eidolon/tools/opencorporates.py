@@ -37,6 +37,7 @@ class OpenCorporatesOutput(BaseModel):
 
 class OpenCorporates(Tool[OpenCorporatesInput, OpenCorporatesOutput]):
     name = "opencorporates"
+    requires = ["OPENCORPORATES_API_KEY"]
     input_type = "name"
     input_schema = OpenCorporatesInput
     output_schema = OpenCorporatesOutput

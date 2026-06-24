@@ -62,6 +62,7 @@ WHOXY_URL = "https://api.whoxy.com/"
 
 class Whoxy(Tool[WhoxyInput, WhoxyOutput]):
     name = "whoxy"
+    requires = ["WHOXY_API_KEY"]
     input_schema = WhoxyInput
     output_schema = WhoxyOutput
 

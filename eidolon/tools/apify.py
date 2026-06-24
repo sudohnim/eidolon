@@ -18,6 +18,7 @@ from eidolon.tools.broker_scan import (
 
 class Apify(Tool[BrokerScanInput, BrokerProfilesOutput]):
     name = "apify"
+    requires = ["APIFY_API_TOKEN"]
     input_type = "name"
     input_schema = BrokerScanInput
     output_schema = BrokerProfilesOutput

@@ -29,6 +29,7 @@ class NumverifyOutput(BaseModel):
 
 class Numverify(Tool[NumverifyInput, NumverifyOutput]):
     name = "numverify"
+    requires = ["NUMVERIFY_API_KEY"]
     input_type = "phone"
     input_schema = NumverifyInput
     output_schema = NumverifyOutput

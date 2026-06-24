@@ -46,6 +46,7 @@ class HibpOutput(BaseModel):
 
 class Hibp(Tool[HibpInput, HibpOutput]):
     name = "hibp"
+    requires = ["HIBP_API_KEY"]
     input_schema = HibpInput
     output_schema = HibpOutput
 

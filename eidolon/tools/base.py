@@ -45,11 +45,21 @@ class Tool(ABC, Generic[TIn, TOut]):
     output_schema: ClassVar[type[BaseModel]]
     #: default ToolResult.input_type; override _input_type() for dynamic cases
     input_type: ClassVar[InputType] = "email"
+    #: env vars this tool needs to run (e.g. ["HIBP_API_KEY"]). Drives both the
+    #: default availability check and the user-facing "skipped" message.
+    requires: ClassVar[list[str]] = []
 
     def available(self) -> bool:
-        """Whether the tool is configured to run (e.g. a required API key is set).
-        When False, ``run`` returns an empty output instead of calling ``_run``."""
-        return True
+        """Whether the tool is configured to run. Default: every var in
+        ``requires`` is set. Override for custom logic (e.g. multiple keys)."""
+        return all(config.get(k) for k in self.requires)
+
+    def skip_reason(self) -> str:
+        """Human-readable reason the tool was skipped (which keys are missing)."""
+        missing = [k for k in self.requires if not config.get(k)]
+        if missing:
+            return "not checked — set " + ", ".join(missing)
+        return "not checked — not configured"
 
     @abstractmethod
     def _run(self, inp: TIn, log: structlog.stdlib.BoundLogger) -> TOut:
@@ -86,10 +96,24 @@ def run_to_result(tool: Tool[TIn, TOut], inp: TIn) -> ToolResult:
     ts = datetime.now(timezone.utc)
     itype = tool._input_type(inp)
     ivalue = tool._input_value(inp)
+    # "not configured" is a distinct, visible state — never let a missing key
+    # masquerade as "ran and found nothing". (TEST_MODE always runs via fixtures.)
+    if not config.is_test_mode() and not tool.available():
+        return ToolResult(
+            success=True,
+            status="skipped",
+            tool=tool.name,
+            input_type=itype,
+            input_value=ivalue,
+            timestamp=ts,
+            data={},
+            error=tool.skip_reason(),
+        )
     try:
         out = tool.run(inp)
         return ToolResult(
             success=True,
+            status="ok",
             tool=tool.name,
             input_type=itype,
             input_value=ivalue,
@@ -100,6 +124,7 @@ def run_to_result(tool: Tool[TIn, TOut], inp: TIn) -> ToolResult:
         get_logger(f"eidolon.tools.{tool.name}").error("tool failed", error=str(exc))
         return ToolResult(
             success=False,
+            status="error",
             tool=tool.name,
             input_type=itype,
             input_value=ivalue,
