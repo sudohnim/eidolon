@@ -208,7 +208,7 @@ Do not add a `vendor/blackbird` directory — Blackbird is baked into the image.
 ### tools/maigret.py
 Uses `maigret.checking.maigret` async function directly (Python library, not subprocess).
 Loads `MaigretDatabase` from bundled `data.json` (3155 sites).
-Username derived from email prefix (e.g. `minh.v.mai` from `minh.v.mai@gmail.com`).
+Username derived from email prefix (e.g. `jane.doe` from `jane.doe@gmail.com`).
 Result stored in `state.sherlock_result` (legacy field name — do not rename, tests depend on it).
 Suppresses maigret's own logging (set to CRITICAL).
 

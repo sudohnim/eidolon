@@ -636,8 +636,8 @@ class TestPivotValueValidation:
     def test_freeform_types_stay_permissive(self):
         from eidolon.agent.nodes import _valid_pivot_value
 
-        assert _valid_pivot_value("username", "minhvmai")
-        assert _valid_pivot_value("name", "minh v mai")
+        assert _valid_pivot_value("username", "johndoe")
+        assert _valid_pivot_value("name", "john doe")
 
 
 class TestToolResultEnvelope:
