@@ -11,9 +11,7 @@ from eidolon import config
 from eidolon.tools.base import Tool
 
 COURTLISTENER_URL = "https://www.courtlistener.com/api/rest/v4/search/"
-_HEADERS = {
-    "User-Agent": "osint-agent/1.0 (privacy research tool; not for commercial use)"
-}
+_HEADERS = {"User-Agent": "eidolon/1.0 (privacy research tool; not for commercial use)"}
 
 
 class CourtCase(BaseModel):

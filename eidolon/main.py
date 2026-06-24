@@ -36,7 +36,7 @@ _validate_zip = _argtype(runner.normalize_zip)
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="osint-agent",
+        prog="eidolon",
         description="Local privacy OSINT scanner. At least one input flag is required.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""

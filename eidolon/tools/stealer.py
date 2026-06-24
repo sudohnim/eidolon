@@ -64,7 +64,7 @@ class Stealer(Tool[StealerInput, StealerOutput]):
         # Build URL manually — requests percent-encodes @ as %40, which HR rejects
         resp = requests.get(
             f"{CAVALIER_URL}?email={email}",
-            headers={"User-Agent": "osint-agent/1.0"},
+            headers={"User-Agent": "eidolon/1.0"},
             timeout=20,
         )
         resp.raise_for_status()

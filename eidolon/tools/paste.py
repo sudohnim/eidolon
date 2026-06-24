@@ -102,7 +102,7 @@ class Paste(Tool[PasteInput, PasteOutput]):
         email = inp.email
         headers = {
             "hibp-api-key": config.get("HIBP_API_KEY"),
-            "user-agent": "osint-agent/1.0",
+            "user-agent": "eidolon/1.0",
         }
 
         resp = None

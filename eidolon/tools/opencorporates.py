@@ -12,9 +12,7 @@ from eidolon import config
 from eidolon.tools.base import Tool
 
 OPENCORPORATES_OFFICERS_URL = "https://api.opencorporates.com/v0.4/officers/search"
-_HEADERS = {
-    "User-Agent": "osint-agent/1.0 (privacy research tool; not for commercial use)"
-}
+_HEADERS = {"User-Agent": "eidolon/1.0 (privacy research tool; not for commercial use)"}
 
 
 class CorporateRecord(BaseModel):
