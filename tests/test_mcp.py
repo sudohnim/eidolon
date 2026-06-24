@@ -26,11 +26,36 @@ def cleanup_output():
         shutil.rmtree(out)
 
 
-def test_all_four_tools_registered():
+def test_all_tools_registered():
     import asyncio
 
     names = {t.name for t in asyncio.run(server.mcp.list_tools())}
-    assert names == {"scan_target", "list_scans", "get_report", "reveal_credentials"}
+    assert names == {
+        "scan_target",
+        "scan_status",
+        "list_scans",
+        "get_report",
+        "reveal_credentials",
+    }
+
+
+def test_scan_target_is_async_and_polls_to_done():
+    import time
+
+    out = server.scan_target(email="test@example.com")
+    assert out.get("status") == "running"
+    scan_id = out["scan_id"]
+
+    status = {}
+    for _ in range(100):  # TEST_MODE scan finishes fast
+        status = server.scan_status(scan_id)
+        if status["status"] in ("done", "error"):
+            break
+        time.sleep(0.05)
+
+    assert status["status"] == "done", status
+    assert status["result"]["scan_id"] == scan_id
+    assert "skipped_sources" in status
 
 
 def test_strip_dossier_removes_section_and_keeps_neighbors():

@@ -129,7 +129,7 @@ def intake_node(state: PipelineState) -> PipelineState:
 
     # Bind run context for every subsequent log line: run_id, scan type, and a
     # REDACTED target (never the full PII this tool exists to protect).
-    run_id = uuid.uuid4().hex[:8]
+    run_id = state.run_id or uuid.uuid4().hex[:8]
     primary = classifications[0] if classifications else None
     if primary:
         bind_run_context(

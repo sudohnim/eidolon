@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
 
-from eidolon.core import repository, runner
+from eidolon.core import jobs, repository
 
 mcp = FastMCP("eidolon")
 
@@ -32,15 +32,15 @@ def scan_target(
     state: str | None = None,
     zip_code: str | None = None,
 ) -> dict:
-    """Run a full privacy-OSINT scan on a target and return its headline result.
+    """Start a privacy-OSINT scan. Returns immediately with a scan_id.
 
-    Provide at least one of email / phone / name (name works best with a
-    location). Returns scan_id, risk score/level, an identity summary, top risks,
-    and report paths. Does NOT include leaked credentials — use
-    reveal_credentials(scan_id) for those. Blocks for several minutes while the
-    scan runs.
+    The scan runs in the background and takes several minutes. Poll
+    scan_status(scan_id) until it reports "done", then call get_report(scan_id).
+    Only one scan runs at a time. Provide at least one of email / phone / name
+    (name works best with a city/state). Leaked credentials are never in the
+    headline result — use reveal_credentials(scan_id) for those.
     """
-    result = runner.run_scan(
+    return jobs.start_scan(
         email=email,
         phone=phone,
         name=name,
@@ -48,7 +48,51 @@ def scan_target(
         state=state,
         zip_code=zip_code,
     )
-    return result.model_dump()
+
+
+@mcp.tool()
+def scan_status(scan_id: str) -> dict:
+    """Check a scan started by scan_target: status is running | done | error.
+
+    When done, includes the headline result (risk, summary, top risks, report
+    paths) and which sources were skipped because no API token was configured.
+    Then call get_report(scan_id).
+    """
+    job = jobs.get_job(scan_id)
+    if job is None:
+        # Unknown to this process (e.g. the server restarted) — recover from disk.
+        if repository.report_paths(scan_id):
+            return {
+                "scan_id": scan_id,
+                "status": "done",
+                "skipped_sources": _skipped_sources(scan_id),
+                "note": "recovered from a saved report (not tracked in memory)",
+            }
+        return {
+            "scan_id": scan_id,
+            "status": "unknown",
+            "error": "no such scan in this server",
+        }
+    out: dict = {"scan_id": scan_id, "status": job["status"]}
+    if job["status"] == "done":
+        out["result"] = job["result"]
+        out["skipped_sources"] = _skipped_sources(scan_id)
+    elif job["status"] == "error":
+        out["error"] = job["error"]
+    return out
+
+
+def _skipped_sources(scan_id: str) -> list[str]:
+    """Sources that were not checked (no token), read from the saved scan state."""
+    try:
+        data = repository.load_scan_state(scan_id)
+    except Exception:
+        return []
+    out = []
+    for key, val in data.items():
+        if isinstance(val, dict) and val.get("status") == "skipped":
+            out.append(f"{val.get('tool', key)}: {val.get('error', 'not checked')}")
+    return out
 
 
 @mcp.tool()
