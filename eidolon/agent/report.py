@@ -763,7 +763,14 @@ def _write_pdf(
     tool_rows = []
 
     def _tr(label, result_obj, value_fn):
-        if result_obj and result_obj.success:
+        if not result_obj:
+            return
+        if result_obj.status == "skipped":
+            # "not checked — set X" — never let a missing key read as "0 found".
+            tool_rows.append([label, result_obj.error or "not checked"])
+        elif result_obj.status == "error" or not result_obj.success:
+            tool_rows.append([label, "check failed"])
+        else:
             tool_rows.append([label, value_fn(result_obj.data)])
 
     _tr("HIBP", state.hibp_result, lambda d: f"{d.get('breach_count',0)} breaches")
@@ -1243,7 +1250,7 @@ def write_report(state: PipelineState) -> str:
         lines.append("")
 
     lines += ["---", "", "## Where We Looked", ""]
-    if state.hibp_result and state.hibp_result.success:
+    if state.hibp_result and state.hibp_result.status == "ok":
         lines.append(
             f"- **HIBP:** {state.hibp_result.data.get('breach_count',0)} breaches"
         )
@@ -1363,6 +1370,20 @@ def write_report(state: PipelineState) -> str:
                 f"{len(d.get('matched') or [])} property(ies), "
                 f"{d.get('total_captures',0)} page capture(s)"
             )
+
+    # Sources we couldn't check because no API token was configured — shown
+    # explicitly so a missing key never reads as "checked, nothing found".
+    _keyed = [
+        ("HIBP (breaches)", state.hibp_result),
+        ("DeHashed (leaked records)", state.dehashed_result),
+        ("Whoxy (domains)", state.whoxy_result),
+        ("Shodan (exposed hosts)", state.shodan_result),
+    ]
+    _skipped = [
+        f"- **{lbl}:** {r.error}" for lbl, r in _keyed if r and r.status == "skipped"
+    ]
+    if _skipped:
+        lines += ["", "_Not checked — no API token configured:_", ""] + _skipped
 
     if state.correlation_results:
         successful = [r for r in state.correlation_results if r.success]
