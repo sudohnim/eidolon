@@ -93,35 +93,64 @@ class TestQueryTarget:
         )
         monkeypatch.setattr(cc.requests, "get", lambda *a, **k: _Resp(200, body))
         log = __import__("structlog").get_logger()
-        prop = _query_target("https://index.example/cdx", "janedoe.com", log)
+        status, prop = _query_target("https://index.example/cdx", "janedoe.com", log)
+        assert status == "matched"
         assert prop is not None
         assert prop.capture_count == 2
         assert prop.sample_url == "https://janedoe.com/"
         assert prop.sample_timestamp == "20260101000000"
 
-    def test_404_returns_none(self, monkeypatch):
+    def test_404_is_absent(self, monkeypatch):
         import eidolon.tools.commoncrawl as cc
 
         monkeypatch.setattr(cc.requests, "get", lambda *a, **k: _Resp(404, ""))
         log = __import__("structlog").get_logger()
-        assert _query_target("https://index.example/cdx", "nope.com", log) is None
+        assert _query_target("https://index.example/cdx", "nope.com", log) == (
+            "absent",
+            None,
+        )
 
-    def test_empty_body_returns_none(self, monkeypatch):
+    def test_empty_body_is_absent(self, monkeypatch):
         import eidolon.tools.commoncrawl as cc
 
         monkeypatch.setattr(cc.requests, "get", lambda *a, **k: _Resp(200, "   "))
         log = __import__("structlog").get_logger()
-        assert _query_target("https://index.example/cdx", "nope.com", log) is None
+        assert _query_target("https://index.example/cdx", "nope.com", log) == (
+            "absent",
+            None,
+        )
 
-    def test_network_error_returns_none(self, monkeypatch):
+    def test_network_error_is_error_not_absent(self, monkeypatch):
         import eidolon.tools.commoncrawl as cc
+
+        monkeypatch.setattr(cc.time, "sleep", lambda *a, **k: None)  # no retry delay
 
         def _raise(*a, **k):
             raise cc.requests.RequestException("boom")
 
         monkeypatch.setattr(cc.requests, "get", _raise)
         log = __import__("structlog").get_logger()
-        assert _query_target("https://index.example/cdx", "x.com", log) is None
+        # A network failure is "error" (could-not-check), never "absent".
+        assert _query_target("https://index.example/cdx", "x.com", log) == (
+            "error",
+            None,
+        )
+
+    def test_transient_504_retries_then_errors(self, monkeypatch):
+        import eidolon.tools.commoncrawl as cc
+
+        monkeypatch.setattr(cc.time, "sleep", lambda *a, **k: None)
+        calls = {"n": 0}
+
+        def _504(*a, **k):
+            calls["n"] += 1
+            return _Resp(504, "")
+
+        monkeypatch.setattr(cc.requests, "get", _504)
+        log = __import__("structlog").get_logger()
+        status, prop = _query_target("https://index.example/cdx", "x.com", log)
+        assert status == "error" and prop is None
+        assert calls["n"] == cc._MAX_ATTEMPTS  # retried, not given up on first 504
 
 
 class TestTargetDerivation:
