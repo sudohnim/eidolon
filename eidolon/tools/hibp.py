@@ -58,7 +58,7 @@ class Hibp(Tool[HibpInput, HibpOutput]):
     def _run(self, inp: HibpInput, log: structlog.stdlib.BoundLogger) -> HibpOutput:
         api_key = config.get("HIBP_API_KEY")
         url = f"https://haveibeenpwned.com/api/v3/breachedaccount/{inp.value}"
-        headers = {"hibp-api-key": api_key, "user-agent": "osint-agent"}
+        headers = {"hibp-api-key": api_key, "user-agent": "eidolon"}
         params = {"truncateResponse": "false"}
         resp = requests.get(url, headers=headers, params=params, timeout=10)
 

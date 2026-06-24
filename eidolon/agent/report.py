@@ -81,7 +81,7 @@ def _dossier_lines(state: PipelineState) -> list[str]:
     lines = [
         "---",
         "",
-        "## Leaked Credentials",
+        "## Your Actual Leaked Data",
         "",
         "_Actual records found in breach dumps for this exact mailbox — "
         f"{n} record(s) across {len(records)} source(s). "
@@ -111,7 +111,12 @@ def _clean_cred_hash(h: str) -> tuple[str, str]:
     from eidolon.tools.dehashed import _hash_type
 
     raw = (h or "").split("||")[0].split(":")[0].strip()
-    algo = h.split("||")[-1].strip() if "||" in (h or "") else _hash_type(raw)
+    if "||" in (h or ""):
+        # rsplit + strip pipes: some salts themselves end in '|', so a plain
+        # split("||")[-1] would leave a stray pipe on the algorithm label.
+        algo = h.rsplit("||", 1)[-1].strip().strip("|").strip()
+    else:
+        algo = _hash_type(raw)
     return raw, algo
 
 
@@ -119,14 +124,88 @@ logger = logging.getLogger(__name__)
 
 
 # ── Colour palette ────────────────────────────────────────────────────────────
-_RED = (0.85, 0.15, 0.15)
-_ORANGE = (0.90, 0.45, 0.05)
-_GREEN = (0.10, 0.60, 0.25)
-_DARK = (0.10, 0.10, 0.15)
-_MID = (0.35, 0.35, 0.40)
-_LIGHT = (0.94, 0.94, 0.96)
+# Soft, warm, low-saturation tones — a calm briefing, not a pentest printout.
+# Risk colours read as gentle signals rather than alarms; text is a muted slate
+# ink instead of near-black; the accent is a dusty slate-blue.
+_RED = (0.70, 0.36, 0.31)  # muted clay / terracotta — high risk
+_ORANGE = (0.80, 0.58, 0.34)  # soft amber — medium risk
+_GREEN = (0.42, 0.56, 0.45)  # muted sage — low risk
+_DARK = (0.22, 0.24, 0.29)  # muted slate ink — body text
+_MID = (0.46, 0.48, 0.53)  # soft grey — secondary text
+_LIGHT = (0.95, 0.95, 0.96)  # warm off-white — dividers / row tint
 _WHITE = (1.00, 1.00, 1.00)
-_ACCENT = (0.18, 0.36, 0.72)
+_ACCENT = (0.36, 0.45, 0.56)  # dusty slate-blue — headings
+_BAND = (0.96, 0.96, 0.97)  # gentle header band fill
+
+# ── Soft typeface ─────────────────────────────────────────────────────────────
+# Nunito (rounded, humanist, OFL) reads warmer than Helvetica. We bundle static
+# weights under assets/fonts/ and register them with reportlab. If the fonts are
+# unavailable (e.g. a packaged install without assets), fall back to Helvetica so
+# the report still renders.
+
+
+def _find_assets_dir() -> Path:
+    """Locate the assets/ folder for both source checkouts and packaged installs.
+
+    Source layout keeps assets/ at the repo root (../../assets relative to this
+    file); a wheel build force-includes them next to the package. Return the
+    first that exists, defaulting to the repo-root path.
+    """
+    candidates = [
+        Path(__file__).resolve().parents[2] / "assets",  # repo root (source)
+        Path(__file__).resolve().parents[1] / "assets",  # packaged alongside pkg
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    return candidates[0]
+
+
+_ASSETS_DIR = _find_assets_dir()
+_FONT_DIR = _ASSETS_DIR / "fonts"
+_LOGO_PATH = _ASSETS_DIR / "logo.png"
+
+# Font face names used in the styles below; rebound to Helvetica on fallback.
+_FONT_BODY = "Nunito"
+_FONT_MEDIUM = "Nunito-SemiBold"
+_FONT_BOLD = "Nunito-Bold"
+
+_FONTS_READY: bool = False
+
+
+def _register_fonts() -> bool:
+    """Register the bundled Nunito weights once; fall back to Helvetica.
+
+    Returns True if Nunito is available, False if we fell back. Idempotent.
+    """
+    global _FONTS_READY, _FONT_BODY, _FONT_MEDIUM, _FONT_BOLD
+    if _FONTS_READY:
+        return _FONT_BODY == "Nunito"
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    faces = {
+        "Nunito": _FONT_DIR / "Nunito-Regular.ttf",
+        "Nunito-SemiBold": _FONT_DIR / "Nunito-SemiBold.ttf",
+        "Nunito-Bold": _FONT_DIR / "Nunito-Bold.ttf",
+    }
+    try:
+        if not all(p.exists() for p in faces.values()):
+            raise FileNotFoundError("bundled Nunito fonts not found")
+        for name, path in faces.items():
+            if name not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont(name, str(path)))
+        _FONTS_READY = True
+        return True
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning("soft font unavailable, using Helvetica: %s", exc)
+        _FONT_BODY, _FONT_MEDIUM, _FONT_BOLD = (
+            "Helvetica",
+            "Helvetica-Bold",
+            "Helvetica-Bold",
+        )
+        _FONTS_READY = True
+        return False
 
 
 def _risk_colour(level: str) -> tuple:
@@ -148,13 +227,18 @@ def _write_pdf(
     from reportlab.lib.units import mm
     from reportlab.platypus import (
         HRFlowable,
+        Image,
         KeepTogether,
+        PageBreak,
         Paragraph,
         SimpleDocTemplate,
         Spacer,
         Table,
         TableStyle,
     )
+
+    # Register the soft typeface up front so every style picks it up.
+    _register_fonts()
 
     primary = state.classifications[0] if state.classifications else None
     target = primary.value if primary else "unknown"
@@ -179,11 +263,11 @@ def _write_pdf(
     # ── Styles ────────────────────────────────────────────────────────────────
     def style(name: str, **kw: object) -> ParagraphStyle:
         base = dict(
-            fontName="Helvetica",
+            fontName=_FONT_BODY,
             fontSize=10,
-            leading=14,
+            leading=16,
             textColor=colors.Color(*_DARK),
-            spaceAfter=2,
+            spaceAfter=3,
         )
         base.update(kw)
         return ParagraphStyle(name, **base)
@@ -191,42 +275,42 @@ def _write_pdf(
     S = {
         "h1": style(
             "h1",
-            fontName="Helvetica-Bold",
+            fontName=_FONT_BOLD,
             fontSize=20,
-            leading=24,
+            leading=25,
             textColor=colors.Color(*_ACCENT),
-            spaceAfter=2,
+            spaceAfter=3,
         ),
-        "meta": style("meta", fontSize=9, textColor=colors.Color(*_MID)),
+        "meta": style("meta", fontSize=9, leading=14, textColor=colors.Color(*_MID)),
         "h2": style(
             "h2",
-            fontName="Helvetica-Bold",
+            fontName=_FONT_MEDIUM,
             fontSize=13,
-            leading=17,
+            leading=18,
             textColor=colors.Color(*_ACCENT),
-            spaceBefore=10,
-            spaceAfter=4,
+            spaceBefore=12,
+            spaceAfter=5,
         ),
         "h3": style(
             "h3",
-            fontName="Helvetica-Bold",
-            fontSize=10,
-            leading=14,
+            fontName=_FONT_MEDIUM,
+            fontSize=10.5,
+            leading=15,
             textColor=colors.Color(*_DARK),
-            spaceBefore=6,
-            spaceAfter=2,
+            spaceBefore=7,
+            spaceAfter=3,
         ),
-        "body": style("body", leading=15),
-        "bullet": style("bullet", leftIndent=12, bulletIndent=0, leading=15),
+        "body": style("body", leading=16),
+        "bullet": style("bullet", leftIndent=12, bulletIndent=0, leading=16),
         "check": style(
             "check",
-            fontName="Helvetica",
-            fontSize=9,
-            leading=14,
+            fontName=_FONT_BODY,
+            fontSize=9.5,
+            leading=16,
             leftIndent=12,
             textColor=colors.Color(*_DARK),
         ),
-        "small": style("small", fontSize=8, textColor=colors.Color(*_MID)),
+        "small": style("small", fontSize=8, leading=12, textColor=colors.Color(*_MID)),
     }
 
     def hr():
@@ -234,8 +318,8 @@ def _write_pdf(
             width="100%",
             thickness=0.5,
             color=colors.Color(*_LIGHT),
-            spaceAfter=6,
-            spaceBefore=2,
+            spaceAfter=8,
+            spaceBefore=4,
         )
 
     def h2(text):
@@ -251,7 +335,10 @@ def _write_pdf(
         return Paragraph(f"• &nbsp;{text}", S["bullet"])
 
     def checkbox(text):
-        return Paragraph(f"☐ &nbsp;{_rem_item(text)}", S["check"])
+        # Nunito has no checkbox glyph; a bracketed marker reads as a to-do and
+        # renders cleanly in the soft face.
+        mark = f'<font name="{_FONT_MEDIUM}">[ ]</font>'
+        return Paragraph(f"{mark} &nbsp;{_rem_item(text)}", S["check"])
 
     def space(h=4):
         return Spacer(1, h * mm)
@@ -259,12 +346,40 @@ def _write_pdf(
     # ── Build story ───────────────────────────────────────────────────────────
     story = []
 
-    # Title block
-    story += [
+    # Header band — logo (left) beside the title, on a gentle tinted panel.
+    title_cell = [
         Paragraph("Privacy OSINT Report", S["h1"]),
         Paragraph(f"Target: <b>{target}</b> &nbsp;·&nbsp; Generated: {ts}", S["meta"]),
-        space(3),
     ]
+    logo_cell: object = ""
+    if _LOGO_PATH.exists():
+        try:
+            # ~22mm (~83px) tall, aspect preserved — a soft, unobtrusive mark.
+            logo = Image(str(_LOGO_PATH), width=22 * mm, height=22 * mm)
+            logo.hAlign = "CENTER"
+            logo_cell = logo
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("logo unavailable: %s", exc)
+            logo_cell = ""
+
+    header = Table(
+        [[logo_cell, title_cell]],
+        colWidths=[26 * mm, W - 26 * mm],
+    )
+    header.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), colors.Color(*_BAND)),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+                ("ROUNDEDCORNERS", [6]),
+            ]
+        )
+    )
+    story += [header, space(5)]
 
     # Risk score banner
     banner_data = [
@@ -273,8 +388,9 @@ def _write_pdf(
                 "RISK SCORE",
                 style(
                     "rs_label",
-                    fontName="Helvetica-Bold",
+                    fontName=_FONT_MEDIUM,
                     fontSize=8,
+                    leading=11,
                     textColor=colors.white,
                     alignment=TA_CENTER,
                 ),
@@ -283,8 +399,9 @@ def _write_pdf(
                 f"{risk_scr}/100",
                 style(
                     "rs_score",
-                    fontName="Helvetica-Bold",
+                    fontName=_FONT_BOLD,
                     fontSize=22,
+                    leading=26,
                     textColor=colors.white,
                     alignment=TA_CENTER,
                 ),
@@ -293,8 +410,9 @@ def _write_pdf(
                 risk_lvl,
                 style(
                     "rs_level",
-                    fontName="Helvetica-Bold",
+                    fontName=_FONT_MEDIUM,
                     fontSize=14,
+                    leading=18,
                     textColor=colors.white,
                     alignment=TA_CENTER,
                 ),
@@ -308,9 +426,9 @@ def _write_pdf(
                 ("BACKGROUND", (0, 0), (-1, -1), risk_col),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ("ROUNDEDCORNERS", [4]),
+                ("TOPPADDING", (0, 0), (-1, -1), 12),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+                ("ROUNDEDCORNERS", [8]),
             ]
         )
     )
@@ -326,9 +444,9 @@ def _write_pdf(
         ("handles_and_usernames", "Usernames & Handles"),
         ("platforms_with_accounts", "Accounts Found"),
         ("physical_data", "Physical Data Exposed"),
-        ("credentials_exposed", "Credentials in Circulation"),
+        ("credentials_exposed", "Passwords That Have Leaked"),
         ("google_footprint", "Google Footprint"),
-        ("breach_history", "Breach History"),
+        ("breach_history", "Where Your Data Has Shown Up"),
     ]
     for key, title in sections:
         items = known.get(key) or []
@@ -344,7 +462,7 @@ def _write_pdf(
     if dossier:
         from xml.sax.saxutils import escape
 
-        story += [hr(), h2("Leaked Credentials")]
+        story += [hr(), h2("Your Actual Leaked Data")]
         story.append(
             body(
                 "Actual records found in breach dumps for this exact mailbox. "
@@ -362,9 +480,11 @@ def _write_pdf(
     if top_risks:
         story += [hr(), h2("Top Risks")]
         for risk in top_risks:
+            # A soft coloured dot in the high-risk clay tone — a gentle signal,
+            # and one Nunito can render (the warning glyph it cannot).
             story.append(
                 bullet(
-                    f'<font color="#{int(_RED[0]*255):02x}{int(_RED[1]*255):02x}{int(_RED[2]*255):02x}">⚠</font> &nbsp;{risk}'
+                    f'<font color="#{int(_RED[0]*255):02x}{int(_RED[1]*255):02x}{int(_RED[2]*255):02x}">•</font> &nbsp;{risk}'
                 )
             )
         story.append(space(2))
@@ -380,27 +500,23 @@ def _write_pdf(
     if techniques:
         from xml.sax.saxutils import escape
 
-        story += [hr(), h2("Threat Model (MITRE ATT&CK)")]
+        story += [hr(), h2("What Someone Could Do With This")]
         story.append(
             body(
-                f"<i>{mitre.get('technique_count', 0)} attacker technique(s) your "
-                f"exposure enables, across "
-                f"{escape(', '.join(mitre.get('tactics_covered') or []))}. "
-                f"MITRE ATT&CK is a public catalog of real adversary behaviour "
-                f"(attack.mitre.org).</i>"
+                f"<i>{mitre.get('technique_count', 0)} thing(s) a stranger could "
+                f"realistically try with what's already exposed. (These map to MITRE "
+                f"ATT&CK, a standard catalog of real-world attacker behaviour — the "
+                f"codes are just for reference.)</i>"
             )
         )
         story.append(space(2))
         for t in techniques:
             sev = (t.get("severity") or "").upper()
-            head = (
-                f"{escape(str(t.get('technique_id')))} — "
-                f"{escape(str(t.get('name')))}  ·  {escape(str(t.get('tactic')))}"
-                + (f"  ·  {sev}" if sev else "")
-            )
+            title = t.get("headline") or t.get("name")
+            head = escape(str(title)) + (f"  ·  {sev}" if sev else "")
             block = [h3(head)]
             if t.get("what_it_is"):
-                block.append(body(f"<b>What it is:</b> {escape(t['what_it_is'])}"))
+                block.append(body(f"<b>What this means:</b> {escape(t['what_it_is'])}"))
             if t.get("why_this_finding"):
                 block.append(
                     body(
@@ -409,12 +525,72 @@ def _write_pdf(
                 )
             if t.get("evidence"):
                 block.append(
-                    body(f"<b>Evidence:</b> {escape('; '.join(t['evidence']))}")
+                    body(f"<b>Based on:</b> {escape('; '.join(t['evidence']))}")
                 )
-            if t.get("url"):
-                block.append(body(f"<b>Learn more:</b> {escape(t['url'])}"))
+            ref = f"{t.get('technique_id')} {t.get('name')} ({t.get('tactic')})"
+            block.append(body(f"<i>MITRE reference: {escape(ref)}</i>"))
             block.append(space(2))
             story.append(KeepTogether(block))
+
+    # Your Content in the AI Training Pile (Common Crawl) — honest framing:
+    # Common Crawl is the raw web archive training sets are built FROM; a hit
+    # does NOT mean any model memorized or trained on the person.
+    cc = (
+        state.commoncrawl_result.data
+        if (state.commoncrawl_result and state.commoncrawl_result.success)
+        else {}
+    )
+    if cc.get("present"):
+        from xml.sax.saxutils import escape
+
+        matched = cc.get("matched") or []
+        total = cc.get("total_captures", 0)
+        index_id = cc.get("index_id", "")
+        story += [hr(), h2("Your Content in the AI Training Pile")]
+        story.append(
+            body(
+                "Common Crawl is a free, openly published archive of the public web "
+                "&mdash; the raw corpus that most AI training sets (like Google's C4) "
+                "are filtered and built FROM. Your pages showing up here means your "
+                "public content is in that upstream pile. It does <b>not</b> mean any "
+                "specific AI model memorized you or was trained on you &mdash; only "
+                "that your content is in the corpus training data is sourced from."
+            )
+        )
+        story.append(space(2))
+        block = [
+            h3(f"Found in {len(matched)} web property(ies) — {total} page capture(s)")
+        ]
+        for m in matched:
+            target = escape(str(m.get("target", "")))
+            count = m.get("capture_count", 0)
+            sample = escape(str(m.get("sample_url", "")))
+            line = f"<b>{target}</b> — {count} page capture(s)"
+            if sample:
+                line += f" (e.g. {sample})"
+            block.append(bullet(line))
+        if index_id:
+            block.append(body(f"<i>Common Crawl index: {escape(str(index_id))}</i>"))
+        block.append(space(2))
+        story.append(KeepTogether(block))
+        opt_out = [
+            h3("How to opt out of future AI training crawls"),
+            bullet(
+                "Register your content with Spawning's <b>Do Not Train</b> registry "
+                "at haveibeentrained.com (spawning.ai) so participating AI trainers "
+                "skip it."
+            ),
+            bullet(
+                "Add an <b>ai.txt</b> file to your site (and robots rules) to signal "
+                "that AI crawlers should not collect your pages going forward."
+            ),
+            body(
+                "<i>Note: opting out only affects future crawls. It cannot remove "
+                "your content from copies already in existing archives or datasets.</i>"
+            ),
+            space(2),
+        ]
+        story.append(KeepTogether(opt_out))
 
     # Findings context — split into three buckets
     findings = analysis.get("findings_context") or []
@@ -576,7 +752,9 @@ def _write_pdf(
     if no_action:
         block = [h3("No Action Available")]
         for item in no_action:
-            block.append(Paragraph(f"ℹ &nbsp;{item}", S["check"]))
+            # Soft grey dot — Nunito has no info glyph; this reads as a note.
+            dot = f'<font color="#{int(_MID[0]*255):02x}{int(_MID[1]*255):02x}{int(_MID[2]*255):02x}">•</font>'
+            block.append(Paragraph(f"{dot} &nbsp;{item}", S["check"]))
         block.append(space(2))
         story.append(KeepTogether(block))
 
@@ -696,8 +874,10 @@ def _write_pdf(
         tbl = Table(
             [
                 [
-                    Paragraph(r, style("tc", fontName="Helvetica-Bold", fontSize=9)),
-                    Paragraph(v, style("tv", fontSize=9)),
+                    Paragraph(
+                        r, style("tc", fontName=_FONT_MEDIUM, fontSize=9, leading=13)
+                    ),
+                    Paragraph(v, style("tv", fontSize=9, leading=13)),
                 ]
                 for r, v in tool_rows
             ],
@@ -706,7 +886,6 @@ def _write_pdf(
         tbl.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.Color(*_ACCENT)),
                     (
                         "ROWBACKGROUNDS",
                         (0, 0),
@@ -714,12 +893,13 @@ def _write_pdf(
                         [colors.Color(*_LIGHT), colors.white],
                     ),
                     ("TEXTCOLOR", (0, 0), (-1, -1), colors.Color(*_DARK)),
-                    ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                    ("FONTNAME", (0, 0), (0, -1), _FONT_MEDIUM),
                     ("FONTSIZE", (0, 0), (-1, -1), 9),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                    ("GRID", (0, 0), (-1, -1), 0.3, colors.Color(*_LIGHT)),
+                    ("TOPPADDING", (0, 0), (-1, -1), 6),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                    ("LINEBELOW", (0, 0), (-1, -2), 0.4, colors.Color(*_LIGHT)),
                 ]
             )
         )
@@ -728,9 +908,24 @@ def _write_pdf(
     story += [
         space(4),
         Paragraph(
-            "Generated by osint-agent · local processing · no data stored", S["small"]
+            "Generated by Eidolon · local processing · no data stored", S["small"]
         ),
     ]
+
+    # Put every top-level section on its own page: insert a PageBreak before each
+    # section heading (h2) except the first, dropping any divider/spacer that
+    # would otherwise dangle at the foot of the previous page.
+    paged: list = []
+    seen_section = False
+    for flowable in story:
+        if isinstance(flowable, Paragraph) and flowable.style.name == "h2":
+            if seen_section:
+                while paged and isinstance(paged[-1], (HRFlowable, Spacer)):
+                    paged.pop()
+                paged.append(PageBreak())
+            seen_section = True
+        paged.append(flowable)
+    story = paged
 
     doc.build(story)
 
@@ -795,9 +990,9 @@ def write_report(state: PipelineState) -> str:
         ("handles_and_usernames", "Usernames & Handles"),
         ("platforms_with_accounts", "Accounts Found"),
         ("physical_data", "Physical Data Exposed"),
-        ("credentials_exposed", "Credentials in Circulation"),
+        ("credentials_exposed", "Passwords That Have Leaked"),
         ("google_footprint", "Google Footprint"),
-        ("breach_history", "Breach History"),
+        ("breach_history", "Where Your Data Has Shown Up"),
     ]:
         items = known.get(key) or []
         if items:
@@ -824,30 +1019,82 @@ def write_report(state: PipelineState) -> str:
     )
     techniques = mitre.get("techniques") or []
     if techniques:
-        lines += ["---", "", "## Threat Model (MITRE ATT&CK)", ""]
+        lines += ["---", "", "## What Someone Could Do With This", ""]
         lines.append(
-            f"_{mitre.get('technique_count', 0)} attacker technique(s) your exposure "
-            f"enables, across {', '.join(mitre.get('tactics_covered') or [])}. "
-            f"MITRE ATT&CK is a public catalog of real adversary behaviour "
-            f"(attack.mitre.org)._"
+            f"_{mitre.get('technique_count', 0)} thing(s) a stranger could "
+            f"realistically try with what's already exposed. (These map to MITRE "
+            f"ATT&CK, a standard catalog of real-world attacker behaviour — the "
+            f"codes are just for reference.)_"
         )
         lines.append("")
         for t in techniques:
             sev = (t.get("severity") or "").upper()
-            lines += [
-                f"### {t.get('technique_id')} — {t.get('name')}"
-                f"  ·  {t.get('tactic')}" + (f"  ·  {sev}" if sev else ""),
-                "",
-            ]
+            title = t.get("headline") or t.get("name")
+            lines += [f"### {title}" + (f"  ·  {sev}" if sev else ""), ""]
             if t.get("what_it_is"):
-                lines.append(f"**What it is:** {t['what_it_is']}  ")
+                lines.append(f"**What this means:** {t['what_it_is']}  ")
             if t.get("why_this_finding"):
                 lines.append(f"**Why it applies to you:** {t['why_this_finding']}  ")
             if t.get("evidence"):
-                lines.append(f"**Evidence:** {'; '.join(t['evidence'])}  ")
-            if t.get("url"):
-                lines.append(f"**Learn more:** {t['url']}")
+                lines.append(f"**Based on:** {'; '.join(t['evidence'])}  ")
+            ref = f"{t.get('technique_id')} {t.get('name')} ({t.get('tactic')})"
+            url = t.get("url")
+            ref_line = f"_MITRE reference: {ref}_"
+            lines.append(f"{ref_line} · [details]({url})" if url else f"{ref_line}  ")
             lines.append("")
+
+    # Your Content in the AI Training Pile (Common Crawl) — honest framing:
+    # Common Crawl is the raw web archive training sets are built FROM; a hit
+    # does NOT mean any model memorized or trained on the person.
+    cc = (
+        state.commoncrawl_result.data
+        if (state.commoncrawl_result and state.commoncrawl_result.success)
+        else {}
+    )
+    if cc.get("present"):
+        matched = cc.get("matched") or []
+        total = cc.get("total_captures", 0)
+        index_id = cc.get("index_id", "")
+        lines += ["---", "", "## Your Content in the AI Training Pile", ""]
+        lines.append(
+            "_Common Crawl is a free, openly published archive of the public web — "
+            "the raw corpus that most AI training sets (like Google's C4) are "
+            "filtered and built FROM. Your pages showing up here means your public "
+            "content is in that upstream pile. It does **not** mean any specific AI "
+            "model memorized you or was trained on you — only that your content is in "
+            "the corpus training data is sourced from._"
+        )
+        lines.append("")
+        lines.append(
+            f"Found in {len(matched)} web property(ies) — {total} page capture(s)"
+            + (f" (index {index_id})" if index_id else "")
+            + ":"
+        )
+        lines.append("")
+        for m in matched:
+            target = m.get("target", "")
+            count = m.get("capture_count", 0)
+            sample = m.get("sample_url", "")
+            line = f"- **{target}** — {count} page capture(s)"
+            if sample:
+                line += f" (e.g. {sample})"
+            lines.append(line)
+        lines.append("")
+        lines += ["### How to opt out of future AI training crawls", ""]
+        lines.append(
+            "- Register your content with Spawning's **Do Not Train** registry at "
+            "<https://haveibeentrained.com> (spawning.ai) so participating AI "
+            "trainers skip it."
+        )
+        lines.append(
+            "- Add an **ai.txt** file to your site (and robots rules) to signal that "
+            "AI crawlers should not collect your pages going forward."
+        )
+        lines.append(
+            "- _Opting out only affects future crawls. It cannot remove content "
+            "already in existing archives or datasets._"
+        )
+        lines.append("")
 
     mech_labels_md = {
         "gdpr": "GDPR erasure (EU/UK)",
@@ -995,7 +1242,7 @@ def write_report(state: PipelineState) -> str:
             lines.append(f"- ℹ️ {item}")
         lines.append("")
 
-    lines += ["---", "", "## Raw Tool Results", ""]
+    lines += ["---", "", "## Where We Looked", ""]
     if state.hibp_result and state.hibp_result.success:
         lines.append(
             f"- **HIBP:** {state.hibp_result.data.get('breach_count',0)} breaches"
@@ -1108,11 +1355,19 @@ def write_report(state: PipelineState) -> str:
                     f"  - {rec.get('role','?').title()} at **{rec.get('company_name')}** "
                     f"({rec.get('jurisdiction','?')}, {rec.get('status','?')})"
                 )
+    if state.commoncrawl_result and state.commoncrawl_result.success:
+        d = state.commoncrawl_result.data
+        if d.get("present"):
+            lines.append(
+                f"- **Common Crawl:** present in the public web archive — "
+                f"{len(d.get('matched') or [])} property(ies), "
+                f"{d.get('total_captures',0)} page capture(s)"
+            )
 
     if state.correlation_results:
         successful = [r for r in state.correlation_results if r.success]
         if successful:
-            lines += ["", "### Correlation Pivots"]
+            lines += ["", "### Follow-Up Checks"]
             for r in successful:
                 if r.tool == "maigret":
                     lines.append(
@@ -1134,11 +1389,12 @@ def write_report(state: PipelineState) -> str:
                         f"{r.data.get('total_vulns', 0)} CVEs"
                     )
                 elif r.tool == "phone_lookup" and r.data.get("valid"):
-                    carrier = (r.data.get("carrier") or {}).get("name", "unknown")
+                    carrier = (r.data.get("carrier") or {}).get("name") or "unknown"
+                    loc = r.data.get("location") or r.data.get("country_code") or ""
+                    where = f", registered in {loc}" if loc else ""
                     lines.append(
                         f"- **Phone `{r.input_value}`** — "
-                        f"{r.data.get('line_type', '?')} via {carrier}, "
-                        f"registered in {r.data.get('location', '?')}"
+                        f"{r.data.get('line_type', '?')} via {carrier}{where}"
                     )
                 elif r.tool == "hibp":
                     lines.append(

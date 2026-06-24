@@ -1,158 +1,106 @@
-# OSINT Agent — Pre-Build Setup Checklist
+# Eidolon — Setup & Configuration
 
-Complete all steps before opening Claude Code.
-Check off each item as you go.
+Everything you need to run a scan. Eidolon runs locally — your data and API keys never leave your machine.
 
 ---
 
-## [ ] 1. Ollama
+## 1. Local services (free, no account)
 
+### Ollama — the local LLM that writes the report's narrative
+Install from <https://ollama.com>, then:
 ```bash
-# Install from ollama.com, then:
 ollama pull llama3.1:8b
-curl localhost:11434
+curl localhost:11434          # -> "Ollama is running"
 ```
 
-Expected response from curl: `Ollama is running`
-No account required. Fully local.
-
----
-
-## [ ] 2. SpiderFoot (Docker)
-
+### SpiderFoot — broad footprinting (recommended, but optional)
 ```bash
-# Requires Docker Desktop installed first
 docker run -d -p 5001:5001 --name spiderfoot spiderfoot/spiderfoot
+# verify: open http://localhost:5001
 ```
-
-Verify: open http://localhost:5001 in browser
-SpiderFoot UI should load.
-No API key required for local instance.
+If SpiderFoot is unreachable, Eidolon still runs — that one source is just skipped.
 
 ---
 
-## [ ] 3. Have I Been Pwned API Key
+## 2. Required API keys
 
-1. Go to https://haveibeenpwned.com/API/Key
-2. Purchase subscription ($3.50/month)
-3. Copy API key
-4. Add to .env: `HIBP_API_KEY=your_key_here`
+You need these four to run a scan at all. (`OLLAMA_HOST` and `SPIDERFOOT_HOST` already default to localhost.)
 
----
-
-## [ ] 4. Apify Account + API Token
-
-1. Go to https://apify.com and create free account
-2. Navigate to Settings → Integrations → API Tokens
-3. Create new token, copy it
-4. Add to .env: `APIFY_API_TOKEN=your_token_here`
-5. Go to Apify Store, search "TruePeopleSearch Contact Finder"
-6. Open the actor, copy the Actor ID from the URL
-7. Add to .env: `APIFY_ACTOR_ID=actor_id_here`
+| Key | Cost | Where to get it | What it unlocks |
+|---|---|---|---|
+| `HIBP_API_KEY` | Paid (low monthly fee) | <https://haveibeenpwned.com/API/Key> | Which breaches your email turns up in |
+| `APIFY_API_TOKEN` | Free tier | apify.com → Settings → Integrations → API tokens | Data-broker / people-search scanning |
+| `APIFY_ACTOR_ID` | — (an id, not a key) | Apify Store → pick a people-search actor (e.g. "TruePeopleSearch Contact Finder") → copy its actor id | Tells Eidolon which Apify actor to run |
+| `SCRAPFLY_API_KEY` | Free tier | <https://scrapfly.io> | Scraping backend for the people-search sources |
 
 ---
 
-## [ ] 5. Google Custom Search Engine
+## 3. Optional API keys
 
-### Step A — Create the Search Engine
-1. Go to https://programmablesearchengine.google.com
-2. Click "Add" to create new search engine
-3. Name it: "OSINT Broker Scan"
-4. Under "Sites to search" — leave blank for now
-   (Claude Code will generate data/broker_domains.txt
-   and you'll add these domains after project is created)
-5. Click Create
-6. Go to "Edit search engine" → "Setup"
-7. Copy the Search Engine ID (cx value)
-8. Add to .env: `GOOGLE_CSE_ID=your_cx_here`
+Each adds a data source. Every one **skips gracefully if unset**, so add only what you want.
 
-### Step B — Get Google API Key
-1. Go to https://console.cloud.google.com
-2. Create a new project (or use existing)
-3. Go to APIs & Services → Library
-4. Search "Custom Search API" and enable it
-5. Go to APIs & Services → Credentials
-6. Click "Create Credentials" → "API Key"
-7. Copy the key
-8. Add to .env: `GOOGLE_CSE_API_KEY=your_key_here`
-
-Note: Free tier = 100 queries/day. Sufficient for personal use.
+| Key | Cost | Where to get it | What it adds |
+|---|---|---|---|
+| `DEHASHED_API_KEY` (+ `DEHASHED_EMAIL`) | Paid (~$5/mo) | <https://dehashed.com> | **The actual leaked records — plaintext and hashed passwords (the "Your Actual Leaked Data" dossier).** Turns "you were in 18 breaches" into the real credentials. Highest-impact add-on. |
+| `NUMVERIFY_API_KEY` | Free (100/mo) | <https://numverify.com> | Phone carrier, line type, and location |
+| `SHODAN_API_KEY` | Free tier / paid | <https://shodan.io> | Exposed hosts and open ports tied to your IPs |
+| `COURTLISTENER_API_TOKEN` | Free | courtlistener.com → profile → API | Court records (name pivot) |
+| `OPENCORPORATES_API_KEY` | Free tier | <https://opencorporates.com/api_access> | Company records (name pivot) |
+| `WHOXY_API_KEY` | Paid (pay-as-you-go) | <https://whoxy.com> | Reverse WHOIS — domains registered with your email or name |
 
 ---
 
-## [ ] 6. EasyOptOuts
+## 4. Minimal vs. full setup
 
-No setup needed — you have an existing subscription.
-The tool outputs your dashboard link: https://easyoptouts.com/dashboard
-No env var required.
+- **Minimal (cheapest useful scan):** the 4 required keys → breaches, accounts, broker exposure, and a full written report.
+- **Worth buying first:** `DEHASHED_API_KEY` (~$5/mo) — it's the difference between *"you were in these breaches"* and *the actual leaked passwords*. Single biggest upgrade.
+- **Free add-ons (just sign up):** NumVerify, Shodan, CourtListener, OpenCorporates.
 
 ---
 
-## [ ] 7. UV Package Manager
+## 5. Put it together
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv --version  # verify
+cp .env.example .env     # then fill in your keys
+uv sync
 ```
 
----
-
-## [ ] 8. Create .env File
-
-Create `.env` in project root with all values filled in:
-
+Minimum `.env`:
 ```
-HIBP_API_KEY=
-APIFY_API_TOKEN=
-APIFY_ACTOR_ID=
-GOOGLE_CSE_API_KEY=
-GOOGLE_CSE_ID=
 OLLAMA_HOST=http://localhost:11434
 SPIDERFOOT_HOST=http://localhost:5001
-TEST_MODE=false
-RESULTS_OUTPUT_PATH=output/
+HIBP_API_KEY=...
+APIFY_API_TOKEN=...
+APIFY_ACTOR_ID=...
+SCRAPFLY_API_KEY=...
 ```
 
 ---
 
-## [ ] 9. Add Broker Domains to Google CSE
-
-After Claude Code generates data/broker_domains.txt:
-1. Go back to https://programmablesearchengine.google.com
-2. Edit your search engine
-3. Under "Sites to search" add each domain from broker_domains.txt
-4. Save
-
----
-
-## Verification Checklist
-
-Before first run, confirm all of these:
+## 6. Run
 
 ```bash
-curl localhost:11434          # Ollama is running
-curl localhost:5001           # SpiderFoot UI responds
-cat .env | grep -v "^$"       # All env vars populated
-uv --version                  # UV installed
-docker ps | grep spiderfoot   # SpiderFoot container running
-```
+# scan yourself by email
+uv run eidolon --email you@example.com
 
----
+# name + location (drives people-search / data brokers)
+uv run eidolon --name "Your Name" --state CA
 
-## Start Commands
+# run the MCP server (for Claude Desktop / Claude Code)
+uv run eidolon-mcp
 
-```bash
-# Setup
-uv sync
-
-# Run tests (TEST_MODE — no real data)
+# tests — no network, uses fixtures
 TEST_MODE=true uv run pytest
+```
 
-# Run against real input
-uv run python main.py "your@email.com"
+Reports land in `output/` as `.md`, `.pdf`, and `.json`.
 
-# Multiple inputs
-uv run python main.py "your@email.com
-Your Name
-555-123-4567"
+---
+
+## 7. Verify before a real run
+
+```bash
+curl localhost:11434          # Ollama up
+curl localhost:5001           # SpiderFoot up (optional)
+uv run eidolon --help         # CLI resolves
 ```

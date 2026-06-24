@@ -1,3 +1,4 @@
+import ipaddress
 import json
 import logging
 import re
@@ -1350,6 +1351,28 @@ def correlation_planner_node(state: PipelineState) -> PipelineState:
         return state.model_copy(update={"correlation_plan": deterministic})
 
 
+def _valid_pivot_value(ptype: str, pvalue: str) -> bool:
+    """Sanity-check an LLM-planned pivot value before sending it to a tool.
+
+    The correlation planner is an LLM and occasionally emits a description
+    instead of a concrete value (e.g. an "ip" pivot whose value is
+    "IP addresses found in breaches (e.g. Apollo, DataCamp)"). Validate the
+    cheap, unambiguous cases so we don't waste a lookup on garbage; leave the
+    free-form types (username/name) permissive to avoid dropping good pivots.
+    """
+    if ptype == "ip":
+        try:
+            ipaddress.ip_address(pvalue)
+            return True
+        except ValueError:
+            return False
+    if ptype == "email":
+        return "@" in pvalue and "." in pvalue.rsplit("@", 1)[-1]
+    if ptype == "phone":
+        return sum(c.isdigit() for c in pvalue) >= 7
+    return True
+
+
 def correlation_execute_node(state: PipelineState) -> PipelineState:
     """Execute each planned pivot sequentially and collect results.
 
@@ -1377,6 +1400,12 @@ def correlation_execute_node(state: PipelineState) -> PipelineState:
         ptype = pivot.get("type", "")
         pvalue = (pivot.get("value") or "").strip()
         if not pvalue:
+            continue
+
+        if not _valid_pivot_value(ptype, pvalue):
+            logger.warning(
+                "correlation: dropping malformed %s pivot value=%r", ptype, pvalue
+            )
             continue
 
         key = (ptype, pvalue.lower())
@@ -1439,6 +1468,91 @@ def correlation_execute_node(state: PipelineState) -> PipelineState:
 
     logger.info("correlation_execute_node: collected %d results", len(results))
     return state.model_copy(update={"correlation_results": results})
+
+
+def _commoncrawl_targets(state: PipelineState) -> list[str]:
+    """Pick the person's web properties worth checking against Common Crawl.
+
+    Priority (most clearly "their content" first):
+      1. Personal domains the person registered (Whoxy reverse-WHOIS).
+      2. Notable profile URLs discovered by Maigret (username scan).
+      3. Profile/account URLs from Blackbird (internal probe URLs filtered out).
+      4. Profile URLs surfaced by SpiderFoot.
+      5. Maigret follow-up pivots from correlation.
+
+    Deduped (case-insensitive) and capped at 5 — the CDX index is rate-limited
+    and we only need a representative sample of the person's footprint.
+    """
+    targets: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: str) -> None:
+        v = (value or "").strip()
+        if not v or v.lower() in seen:
+            return
+        seen.add(v.lower())
+        targets.append(v)
+
+    # 1. Personal domains from Whoxy reverse-WHOIS.
+    if state.whoxy_result and state.whoxy_result.success:
+        for dom in state.whoxy_result.data.get("domains") or []:
+            add(dom.get("domain_name", ""))
+
+    # 2. Notable profile URLs from Maigret (stored in sherlock_result).
+    if state.sherlock_result and state.sherlock_result.success:
+        for p in state.sherlock_result.data.get("profiles_found") or []:
+            add(_clean_url(p.get("url", "")))
+
+    # 3. Account URLs from Blackbird — drop internal API probe endpoints.
+    if state.blackbird_result and state.blackbird_result.success:
+        for a in state.blackbird_result.data.get("accounts_found") or []:
+            add(_clean_url(a.get("url", "")))
+
+    # 4. Profile/site URLs from SpiderFoot.
+    if state.spiderfoot_result and state.spiderfoot_result.success:
+        for el in state.spiderfoot_result.data.get("elements") or []:
+            data = (el.get("data") or "").strip()
+            if data.startswith("http"):
+                add(_clean_url(data))
+
+    # 5. Maigret follow-up pivots from correlation.
+    for r in state.correlation_results:
+        if r.success and r.tool == "maigret":
+            for site in r.data.get("sites_found") or []:
+                add(_clean_url(site.get("url", "")))
+
+    return targets[:5]
+
+
+def commoncrawl_node(state: PipelineState) -> PipelineState:
+    """Check whether the person's web presence appears in Common Crawl.
+
+    Common Crawl is the raw, openly published web archive that most large-scale
+    LLM training sets (C4, etc.) are filtered FROM. A hit here means the person's
+    public content is in that upstream pile — it does NOT mean any model
+    memorized or "trained on" them. Skips gracefully when no candidate web
+    properties were discovered.
+    """
+    from eidolon.tools.commoncrawl import CommonCrawl, CommonCrawlInput
+
+    targets = _commoncrawl_targets(state)
+    if not targets:
+        logger.info("commoncrawl_node: no candidate web properties, skipping")
+        return state
+
+    logger.info("commoncrawl_node: checking %d target(s): %s", len(targets), targets)
+    result = run_to_result(CommonCrawl(), CommonCrawlInput(targets=targets))
+    if result.success:
+        logger.info(
+            "commoncrawl_node: OK — present=%s matched=%d captures=%d index=%s",
+            result.data.get("present", False),
+            len(result.data.get("matched") or []),
+            result.data.get("total_captures", 0),
+            result.data.get("index_id", ""),
+        )
+    else:
+        logger.error("commoncrawl_node: FAILED — %s", result.error)
+    return state.model_copy(update={"commoncrawl_result": result})
 
 
 # ── Analysis post-processing ──────────────────────────────────────────────────

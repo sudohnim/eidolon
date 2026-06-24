@@ -45,6 +45,7 @@ class PipelineState(BaseModel):
     phone_result: ToolResult | None = None
     public_records_result: ToolResult | None = None
     mitre_result: ToolResult | None = None
+    commoncrawl_result: ToolResult | None = None
     correlation_plan: list[dict] = []
     correlation_results: list[ToolResult] = []
     analysis_result: dict | None = None
