@@ -607,7 +607,7 @@ wheels = [
 ]
 
 [[package]]
-name = "eidolon"
+name = "eidolon-osint"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
