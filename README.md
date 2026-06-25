@@ -61,25 +61,7 @@ uv run eidolon-mcp
 }
 ```
 
-**Option 2 — from PyPI via `uvx`** (recommended, no clone needed):
-
-```json
-{
-  "mcpServers": {
-    "eidolon": {
-      "command": "uvx",
-      "args": ["--from", "eidolon-osint", "eidolon-mcp"],
-      "env": {
-        "HIBP_API_KEY": "...",
-        "DEHASHED_API_KEY": "...",
-        "OLLAMA_HOST": "http://localhost:11434"
-      }
-    }
-  }
-}
-```
-
-**Option 3 — straight from GitHub** (pre-release / latest commit):
+**Option 2 — no clone, via `uvx`** (install straight from GitHub). A `uvx` launch has no repo `cwd`, so there's no `.env` — pass your keys in the `env` block:
 
 ```json
 {
