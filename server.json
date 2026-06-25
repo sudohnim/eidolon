@@ -1,0 +1,57 @@
+{
+  "name": "eidolon",
+  "description": "Privacy-first OSINT exposure scanner. Checks HaveIBeenPwned, Dehashed, Shodan, Maigret (username sweep), and SpiderFoot. Returns a scored markdown + PDF report. MCP-native: async scan_target → scan_status → get_report.",
+  "vendor": "Sudohnim LLC",
+  "homepage": "https://github.com/sudohnim/eidolon",
+  "license": "MIT",
+  "repository": "https://github.com/sudohnim/eidolon",
+  "package": {
+    "registry": "pypi",
+    "name": "eidolon-osint",
+    "command": "eidolon-mcp"
+  },
+  "tools": [
+    {
+      "name": "scan_target",
+      "description": "Start an async OSINT scan for an email or username. Returns scan_id immediately."
+    },
+    {
+      "name": "scan_status",
+      "description": "Poll the status of a running scan by scan_id."
+    },
+    {
+      "name": "get_report",
+      "description": "Retrieve the full markdown report for a completed scan."
+    },
+    {
+      "name": "list_scans",
+      "description": "List all scans with their status."
+    },
+    {
+      "name": "reveal_credentials",
+      "description": "Show leaked credentials found for the scanned target."
+    }
+  ],
+  "env": {
+    "HIBP_API_KEY": {
+      "description": "HaveIBeenPwned API key (https://haveibeenpwned.com/API/Key)",
+      "required": false
+    },
+    "DEHASHED_API_KEY": {
+      "description": "Dehashed API key",
+      "required": false
+    },
+    "DEHASHED_USERNAME": {
+      "description": "Dehashed account username",
+      "required": false
+    },
+    "SHODAN_API_KEY": {
+      "description": "Shodan API key",
+      "required": false
+    },
+    "OLLAMA_HOST": {
+      "description": "Ollama base URL for local LLM summarization (default: http://localhost:11434)",
+      "required": false
+    }
+  }
+}

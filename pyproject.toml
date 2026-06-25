@@ -1,5 +1,5 @@
 [project]
-name = "eidolon"
+name = "eidolon-osint"
 version = "0.1.0"
 description = "Local, privacy-first, MCP-native OSINT exposure scanner."
 readme = "README.md"
