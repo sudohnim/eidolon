@@ -18,14 +18,16 @@ Eidolon is a privacy-first approach to finding and understanding your digital fo
 
 Eidolon runs as an [MCP](https://modelcontextprotocol.io) server, so you can drive it from any MCP client (Claude Desktop, Claude Code) — scan a target, list past scans, and read reports conversationally. It runs locally over stdio; your data never leaves the box.
 
-Tools: `scan_target`, `list_scans`, `get_report`, `reveal_credentials`. The leaked-credential dossier (which includes plaintext passwords from breach dumps) is **redacted by default** and only returned when you explicitly call `reveal_credentials`.
+Tools: `scan_target`, `scan_status`, `list_scans`, `get_report`, `reveal_credentials`. A scan takes minutes, so `scan_target` returns a `scan_id` immediately and runs in the background — poll `scan_status(scan_id)` until it reports `done`, then `get_report(scan_id)`. The leaked-credential dossier (plaintext passwords from breach dumps) is **redacted by default** and only returned when you explicitly call `reveal_credentials`.
 
 ## Requirements
 
-- Python 3.11+ and [uv](https://docs.astral.sh/uv/)
-- [Ollama](https://ollama.com) for the local LLM: `ollama pull llama3.1:8b`
-- A running [SpiderFoot](https://github.com/smicallef/spiderfoot) instance (optional — Eidolon degrades gracefully if it's unreachable)
-- API keys — see [`.env.example`](.env.example). HIBP, Apify, and Scrapfly are required; the rest are optional and skip gracefully.
+Everything below is **optional** — Eidolon runs with whatever you give it and tells you, per source, what it couldn't check (no token) versus what it checked and found nothing.
+
+- Python 3.11+ and [uv](https://docs.astral.sh/uv/) (required)
+- [Ollama](https://ollama.com) for the local LLM narrative: `ollama pull llama3.1:8b` — if it's down, the report is still produced deterministically (just no written narrative).
+- A running [SpiderFoot](https://github.com/smicallef/spiderfoot) instance — skipped if unreachable.
+- API keys — see [`.env.example`](.env.example). Each unlocks one data source and **skips cleanly** if absent (the report says "not checked — set X"). A scan with no keys is sparse but still runs.
 
 **New here? Start with the [Setup & Configuration guide](docs/SETUP_CHECKLIST.md)** — which keys to get, what each one costs, and what it unlocks.
 
@@ -45,7 +47,7 @@ uv run eidolon-mcp
 
 ### Use from Claude Desktop
 
-Add to `claude_desktop_config.json`:
+**Option 1 — from a local clone** (loads `.env` from `cwd`):
 
 ```json
 {
@@ -59,7 +61,25 @@ Add to `claude_desktop_config.json`:
 }
 ```
 
-`cwd` matters — Eidolon loads `.env` from the working directory, so live scans pick up your keys.
+**Option 2 — no clone, via `uvx`** (install straight from GitHub). A `uvx` launch has no repo `cwd`, so there's no `.env` — pass your keys in the `env` block:
+
+```json
+{
+  "mcpServers": {
+    "eidolon": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/sudohnim/eidolon", "eidolon-mcp"],
+      "env": {
+        "HIBP_API_KEY": "...",
+        "DEHASHED_API_KEY": "...",
+        "OLLAMA_HOST": "http://localhost:11434"
+      }
+    }
+  }
+}
+```
+
+Add only the keys you have — the rest skip cleanly. Then ask Claude to "scan my email"; it calls `scan_target`, polls `scan_status`, and reads the report.
 
 ## How it works
 

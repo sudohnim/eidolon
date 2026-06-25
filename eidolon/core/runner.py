@@ -115,8 +115,12 @@ def run_scan(
     city: str | None = None,
     state: str | None = None,
     zip_code: str | None = None,
+    run_id: str | None = None,
 ) -> ScanResult:
     """Run a full scan and return its headline result + report paths.
+
+    ``run_id`` may be supplied so a caller (e.g. the async MCP job) knows the
+    scan_id before the scan finishes; intake reuses it instead of minting one.
 
     Blocks until the pipeline finishes (a real scan can take several minutes —
     SpiderFoot alone runs up to ~10). Artifacts are written by report_node; the
@@ -135,7 +139,7 @@ def run_scan(
     )
 
     graph = build_graph()
-    final = graph.invoke(PipelineState(raw_input=raw_input))
+    final = graph.invoke(PipelineState(raw_input=raw_input, run_id=run_id or ""))
     scan_state = (
         final
         if isinstance(final, PipelineState)

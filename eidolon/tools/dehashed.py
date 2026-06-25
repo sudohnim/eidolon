@@ -102,6 +102,7 @@ def same_mailbox(a: str, b: str) -> bool:
 
 class Dehashed(Tool[DehashedInput, DehashedOutput]):
     name = "dehashed"
+    requires = ["DEHASHED_API_KEY"]
     input_schema = DehashedInput
     output_schema = DehashedOutput
 

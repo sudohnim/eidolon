@@ -37,6 +37,7 @@ class CourtListenerOutput(BaseModel):
 
 class CourtListener(Tool[CourtListenerInput, CourtListenerOutput]):
     name = "courtlistener"
+    requires = ["COURTLISTENER_API_TOKEN"]
     input_type = "name"
     input_schema = CourtListenerInput
     output_schema = CourtListenerOutput

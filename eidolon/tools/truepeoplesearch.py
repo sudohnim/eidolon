@@ -24,6 +24,7 @@ TPS_BASE = "https://www.truepeoplesearch.com/results"
 
 class TruePeopleSearch(Tool[BrokerScanInput, BrokerProfilesOutput]):
     name = "truepeoplesearch"
+    requires = ["SCRAPFLY_API_KEY"]
     input_type = "name"
     input_schema = BrokerScanInput
     output_schema = BrokerProfilesOutput

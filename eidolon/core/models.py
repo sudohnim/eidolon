@@ -14,6 +14,10 @@ class ToolResult(BaseModel):
     timestamp: datetime
     data: dict
     error: str | None = None
+    # "ok"      — ran, result in data (may legitimately be empty = nothing found)
+    # "skipped" — not configured (no API key); NOT the same as "found nothing"
+    # "error"   — ran and failed (error holds the message)
+    status: Literal["ok", "skipped", "error"] = "ok"
 
 
 class InputClassification(BaseModel):

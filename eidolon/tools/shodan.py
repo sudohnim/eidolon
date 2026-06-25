@@ -126,6 +126,7 @@ def _build_host_result(ip: str) -> ShodanHostResult | None:
 
 class Shodan(Tool[ShodanInput, ShodanOutput]):
     name = "shodan"
+    requires = ["SHODAN_API_KEY"]
     input_type = "org"
     input_schema = ShodanInput
     output_schema = ShodanOutput
