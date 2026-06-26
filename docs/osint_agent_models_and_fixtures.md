@@ -11,40 +11,36 @@ The analysis_node receives a `PipelineState` and returns an `AnalysisResult`.
 
 ## Shared Types
 
-```python
-# models/shared.py
+> Canonical source: `eidolon/core/models.py`
 
-from pydantic import BaseModel, Field
+```python
+from pydantic import BaseModel
 from typing import Literal
 from datetime import datetime
 
 class ToolResult(BaseModel):
-    """Envelope wrapper for all tool outputs."""
-    success: bool
+    """Envelope wrapper for all tool outputs (3-state)."""
+    success: bool          # True for ok/skipped, False for error
     tool: str
     input_type: Literal["email", "phone", "name", "org"]
     input_value: str
     timestamp: datetime
     data: dict
     error: str | None = None
+    # "ok"      — ran, result in data (may be empty = nothing found)
+    # "skipped" — not configured (no API key); distinct from "found nothing"
+    # "error"   — ran and failed (error holds the message)
+    status: Literal["ok", "skipped", "error"] = "ok"
 
 class InputClassification(BaseModel):
     """Output of intake_node."""
     type: Literal["email", "phone", "name", "org"]
     value: str
     raw: str
-
-class PipelineState(BaseModel):
-    """LangGraph state passed between all nodes."""
-    raw_input: str
-    classifications: list[InputClassification] = []
-    hibp_result: ToolResult | None = None
-    broker_result: ToolResult | None = None
-    spiderfoot_result: ToolResult | None = None
-    ai_audit_result: ToolResult | None = None
-    analysis_result: dict | None = None
-    report_path: str | None = None
 ```
+
+`PipelineState` now has ~20 tool result fields; see `eidolon/core/models.py` for
+the full list. The fixture schemas below follow the 3-state envelope.
 
 ---
 
@@ -92,6 +88,7 @@ class HibpOutput(BaseModel):
 ```json
 {
   "success": true,
+  "status": "ok",
   "tool": "hibp",
   "input_type": "email",
   "input_value": "test@example.com",
@@ -177,6 +174,7 @@ class HibpOutput(BaseModel):
 ```json
 {
   "success": true,
+  "status": "ok",
   "tool": "hibp",
   "input_type": "email",
   "input_value": "clean@example.com",
@@ -243,6 +241,7 @@ class SpiderfootOutput(BaseModel):
 ```json
 {
   "success": true,
+  "status": "ok",
   "tool": "spiderfoot",
   "input_type": "email",
   "input_value": "test@example.com",
@@ -352,6 +351,7 @@ class BrokerScanOutput(BaseModel):
 ```json
 {
   "success": true,
+  "status": "ok",
   "tool": "broker_scan",
   "input_type": "name",
   "input_value": "John Doe",
@@ -566,6 +566,7 @@ class AiAuditOutput(BaseModel):
 ```json
 {
   "success": true,
+  "status": "ok",
   "tool": "ai_audit",
   "input_type": "email",
   "input_value": "test@example.com",
@@ -715,6 +716,7 @@ All tools must return this shape on failure — never raise exceptions.
 ```json
 {
   "success": false,
+  "status": "error",
   "tool": "hibp",
   "input_type": "email",
   "input_value": "test@example.com",

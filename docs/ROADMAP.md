@@ -19,7 +19,7 @@ engineer can sanity-check the plan and the increments.
   score, what-is-known, and the dossier are built from state, so the report
   survives an LLM JSON-parse failure. Don't move sensitive data into the LLM path.
 - **Green bar is enforced.** `bin/lint.sh` (black/isort/flake8/mypy) + pytest,
-  wired to a pre-commit hook. ~136 tests today.
+  wired to a pre-commit hook. 177 tests today.
 
 ## Repo orientation
 
@@ -31,9 +31,6 @@ engineer can sanity-check the plan and the increments.
   (maigret/blackbird/ghunt), 2 localhost services (SpiderFoot, Ollama).
 - Output: `eidolon/agent/report.py` writes per-run `.json`/`.md`/`.pdf` to
   `RESULTS_OUTPUT_PATH`. The `.json` is a full `state.model_dump()`.
-- **Uncommitted on `main`:** the MITRE slice (breach→ATT&CK signal + PDF Threat
-  Model section), 3 files, tests green. Commit before branching new work.
-
 ---
 
 ## Phase 0 — Baseline (today)
@@ -43,32 +40,21 @@ persistence, no history, no interface besides argparse.
 
 **Architecture:** `CLI → pipeline → tools/LLM → files`.
 
-## Phase 1 — Extract core + thin MCP (stateless) · Effort: S–M
+## Phase 1 — Extract core + thin MCP (stateless) · COMPLETE ✓ · Shipped v0.1.0
 
 **Goal:** drive Eidolon from an MCP client (Claude Desktop/Code) locally. Ships
 the distribution story with **no database**.
 
-**Work**
+**Shipped** (in `eidolon/mcp/server.py`, installed via `uvx --from eidolon-osint eidolon-mcp`):
+- `scan_target(target)` — fires scan, returns `scan_id` immediately (async)
+- `scan_status(scan_id)` — poll until `status == "done"` or `"error"`
+- `list_scans()` — enumerate past scans with status
+- `get_report(scan_id, fmt)` — markdown or JSON, credentials redacted by default
+- `reveal_credentials(scan_id)` — explicit dossier reveal, on-demand only
 
-- Extract `run_scan(inputs) -> scan_id` out of `main.py` (decouple the pipeline
-  from argparse) — CLI and MCP both call it.
-- Add a **repository seam** for reads: `get_report(scan_id)` reads the JSON today
-  (the seam that makes Phase 2 a swap, not a rewrite).
-- MCP server with a *small* high-level surface: `scan_target`, `get_report`; a
-  resource (latest report); optional `reveal_credentials(scan_id)` so the dossier
-  crosses to the LLM only on demand (redact by default).
-- Return the stable `scan_id` (already minted as `run_id`).
-
-**Tooling:** MCP Python SDK (FastMCP), stdio transport. Reuse the existing Docker
-image; add an `mcp` entrypoint. No new infra.
-
-**Architecture delta:** adds an **interface layer parallel to the CLI** over the
-same pipeline. Nothing below changes. The "core" becomes a callable function.
-Still stateless; outputs still files.
-
-**Review focus:** tool signatures stable; `scan_id` returned; redaction posture;
-subprocess tools work inside the server process; serial vs concurrent scans
-(SpiderFoot runs ~10 min).
+**Architecture:** FastMCP, stdio transport, `uvx`-launchable from PyPI (`eidolon-osint`).
+Published to MCP Registry as `io.github.sudohnim/eidolon` v0.1.0.
+All 5 tools are 3-state aware: `ok | skipped | error` — missing keys skip cleanly.
 
 ## Phase 2 — Stateful (Postgres) · Effort: L ← the big change
 
@@ -146,7 +132,7 @@ host are the only always-on pieces).
 
 ## Dependency order
 
-Phase 1 is independent and shippable first (no DB). **Phase 2 gates Phase 3** —
+Phase 1 is complete and shipped (v0.1.0). **Phase 2 gates Phase 3** —
 monitoring and time-travel can't exist before state. MCP's client-facing contract
 holds steady across all three: state slots in *underneath* it.
 

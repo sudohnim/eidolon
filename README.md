@@ -34,7 +34,7 @@ Everything below is **optional** — Eidolon runs with whatever you give it and 
 ## Quickstart
 
 ```bash
-git clone <your-repo-url> eidolon && cd eidolon
+git clone https://github.com/sudohnim/eidolon && cd eidolon
 uv sync
 cp .env.example .env        # fill in your keys
 
@@ -61,7 +61,25 @@ uv run eidolon-mcp
 }
 ```
 
-**Option 2 — no clone, via `uvx`** (install straight from GitHub). A `uvx` launch has no repo `cwd`, so there's no `.env` — pass your keys in the `env` block:
+**Option 2 — from PyPI via `uvx`** (recommended, no clone needed). Pass your keys in the `env` block:
+
+```json
+{
+  "mcpServers": {
+    "eidolon": {
+      "command": "uvx",
+      "args": ["--from", "eidolon-osint", "eidolon-mcp"],
+      "env": {
+        "HIBP_API_KEY": "...",
+        "DEHASHED_API_KEY": "...",
+        "OLLAMA_HOST": "http://localhost:11434"
+      }
+    }
+  }
+}
+```
+
+**Option 3 — straight from GitHub** (pre-release / latest commit):
 
 ```json
 {

@@ -19,7 +19,21 @@ the explicitly defined external API endpoints listed below.
 
 ## Running the Tool
 
-### One command
+### MCP server (primary interface)
+
+```bash
+# Install + launch (no clone needed):
+uvx --from eidolon-osint eidolon-mcp
+
+# Or from local clone:
+uv run eidolon-mcp
+```
+
+Add to Claude Desktop via `claude_desktop_config.json`. Use tools: `scan_target`,
+`scan_status`, `list_scans`, `get_report`, `reveal_credentials`. Published to MCP
+Registry as `io.github.sudohnim/eidolon` v0.1.0.
+
+### CLI (legacy / Docker)
 ```bash
 ./bin/run.sh "target@email.com"
 ./bin/run.sh "John Smith" --state CA
@@ -365,7 +379,7 @@ TEST_MODE=true uv run pytest -x -q
 ```
 
 `TEST_MODE=true` makes all tools return fixtures (validated as the output schema).
-Full pipeline must pass in TEST_MODE. Currently: **120 tests**.
+Full pipeline must pass in TEST_MODE. Currently: **177 tests**.
 
 Build order (follow strictly for new tools):
 1. Fixture (`tests/fixtures/<tool>_response.json`) — the **output-schema payload**
@@ -422,7 +436,7 @@ eidolon/                      # repo root
 ├── .env                          # gitignored
 ├── Dockerfile                    # ENTRYPOINT: python -m eidolon.main
 ├── docker-compose.yml
-├── pyproject.toml                # packages = ["eidolon"]
+├── pyproject.toml                # packages = ["eidolon-osint"] (PyPI name)
 ├── bin/
 │   ├── run.sh / check.sh / lint.sh / setup.sh / removal.py
 ├── .githooks/pre-commit          # lint gate on staged files

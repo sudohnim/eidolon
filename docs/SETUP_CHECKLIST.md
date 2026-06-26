@@ -22,20 +22,24 @@ If SpiderFoot is unreachable, Eidolon still runs — that one source is just ski
 
 ---
 
-## 2. Required API keys
+## 2. API keys (all optional)
 
-You need these four to run a scan at all. (`OLLAMA_HOST` and `SPIDERFOOT_HOST` already default to localhost.)
+Every key skips gracefully if unset — Eidolon uses a 3-state result envelope
+(`ok | skipped | error`), so missing keys simply skip that source without
+erroring. Add only what you want.
+
+**High-impact (start here):**
 
 | Key | Cost | Where to get it | What it unlocks |
 |---|---|---|---|
 | `HIBP_API_KEY` | Paid (low monthly fee) | <https://haveibeenpwned.com/API/Key> | Which breaches your email turns up in |
-| `APIFY_API_TOKEN` | Free tier | apify.com → Settings → Integrations → API tokens | Data-broker / people-search scanning |
-| `APIFY_ACTOR_ID` | — (an id, not a key) | Apify Store → pick a people-search actor (e.g. "TruePeopleSearch Contact Finder") → copy its actor id | Tells Eidolon which Apify actor to run |
-| `SCRAPFLY_API_KEY` | Free tier | <https://scrapfly.io> | Scraping backend for the people-search sources |
+| `DEHASHED_API_KEY` + `DEHASHED_EMAIL` | Paid (~$5/mo) | dehashed.com | **Actual leaked records — plaintext and hashed passwords (the "Your Actual Leaked Data" dossier).** Highest-impact add-on. |
+| `APIFY_API_TOKEN` + `APIFY_ACTOR_ID` | Free tier | apify.com → Settings → Integrations → API tokens | Data-broker / people-search scanning |
+| `SCRAPFLY_API_KEY` | Free tier | <https://scrapfly.io> | Scraping backend for people-search sources |
 
 ---
 
-## 3. Optional API keys
+## 3. Additional API keys
 
 Each adds a data source. Every one **skips gracefully if unset**, so add only what you want.
 
