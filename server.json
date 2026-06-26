@@ -1,13 +1,19 @@
 {
-  "name": "eidolon",
-  "description": "Privacy-first OSINT exposure scanner. Checks HaveIBeenPwned, Dehashed, Shodan, Maigret (username sweep), and SpiderFoot. Returns a scored markdown + PDF report. MCP-native: async scan_target → scan_status → get_report.",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.sudohnim/eidolon",
+  "description": "Privacy-first OSINT scanner: breaches, credentials, Shodan, username sweep. Scored PDF report.",
+  "version": "0.1.0",
+  "registryType": "pypi",
   "vendor": "Sudohnim LLC",
   "homepage": "https://github.com/sudohnim/eidolon",
   "license": "MIT",
-  "repository": "https://github.com/sudohnim/eidolon",
+  "repository": {
+    "url": "https://github.com/sudohnim/eidolon",
+    "source": "github"
+  },
   "package": {
-    "registry": "pypi",
     "name": "eidolon-osint",
+    "version": "0.1.0",
     "command": "eidolon-mcp"
   },
   "tools": [
