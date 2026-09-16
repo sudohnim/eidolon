@@ -38,6 +38,16 @@ dev = [
     "mypy>=1.9.0",
 ]
 
+# PEP 735 dev group — installed by default by `uv run` / `uv sync`, so the
+# verify gate (`TEST_MODE=true uv run pytest`) has pytest + pypdf (the PDF
+# half of the renderer-parity test) without extra flags.
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pypdf>=4.0.0",
+]
+
 [project.scripts]
 eidolon = "eidolon.main:main"
 eidolon-mcp = "eidolon.mcp.__main__:main"

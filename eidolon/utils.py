@@ -35,3 +35,17 @@ def dedupe(values: list[str]) -> list[str]:
             seen.add(key)
             out.append(v)
     return out
+
+
+#: URL markers that identify internal probe endpoints (Holehe/Blackbird API
+#: URLs) — not user-facing profiles; misleading if rendered in a report.
+BOGUS_URL_MARKERS = ("api.", "/api/", "email_available", "/lookup", "/users/lookup")
+
+
+def clean_url(url: str) -> str:
+    """Drop internal probe endpoints: they are not a user-facing profile and
+    are misleading in a report."""
+    u = (url or "").strip()
+    if not u or any(m in u.lower() for m in BOGUS_URL_MARKERS):
+        return ""
+    return u

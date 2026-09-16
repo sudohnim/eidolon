@@ -16,7 +16,7 @@ import re
 
 from pydantic import BaseModel
 
-from eidolon.core.models import PipelineState
+from eidolon.core.state import ScanState
 
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 
@@ -126,8 +126,8 @@ def run_scan(
     SpiderFoot alone runs up to ~10). Artifacts are written by report_node; the
     repository locates them by ``scan_id``.
     """
-    from eidolon.agent.graph import build_graph
     from eidolon.core.repository import report_paths
+    from eidolon.pipeline.graph import build_graph
 
     raw_input = build_raw_input(
         email=email,
@@ -139,11 +139,9 @@ def run_scan(
     )
 
     graph = build_graph()
-    final = graph.invoke(PipelineState(raw_input=raw_input, run_id=run_id or ""))
+    final = graph.invoke(ScanState(raw_input=raw_input, run_id=run_id or ""))
     scan_state = (
-        final
-        if isinstance(final, PipelineState)
-        else PipelineState.model_validate(final)
+        final if isinstance(final, ScanState) else ScanState.model_validate(final)
     )
 
     analysis = scan_state.analysis_result or {}
@@ -161,6 +159,6 @@ def run_scan(
     )
 
 
-def _identifier(state: PipelineState) -> str:
+def _identifier(state: ScanState) -> str:
     primary = state.classifications[0] if state.classifications else None
     return primary.value if primary else "unknown"

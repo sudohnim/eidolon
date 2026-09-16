@@ -11,7 +11,7 @@ os.environ.setdefault("GOOGLE_CSE_ID", "test")
 os.environ.setdefault("OLLAMA_HOST", "http://localhost:11434")
 os.environ.setdefault("SPIDERFOOT_HOST", "http://localhost:5001")
 
-from eidolon.core.models import InputClassification
+from eidolon.core.state import InputClassification
 
 
 class TestInputClassificationModel:

@@ -1,7 +1,7 @@
 """Unconfigured tools must report 'skipped', never a false 'found nothing'."""
 
-from eidolon.tools.base import run_to_result
-from eidolon.tools.hibp import Hibp, HibpInput
+from eidolon.sources.base import run_to_result
+from eidolon.sources.hibp import Hibp, HibpInput
 
 
 def test_unconfigured_tool_is_skipped_not_empty(monkeypatch):

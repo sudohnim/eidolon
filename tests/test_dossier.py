@@ -1,7 +1,6 @@
 """Tests for the exact-mailbox filter and the Leaked Credentials dossier."""
 
 import os
-from datetime import datetime, timezone
 
 os.environ.setdefault("TEST_MODE", "true")
 os.environ.setdefault("HIBP_API_KEY", "test")
@@ -11,14 +10,17 @@ os.environ.setdefault("SCRAPFLY_API_KEY", "test")
 os.environ.setdefault("OLLAMA_HOST", "http://localhost:11434")
 os.environ.setdefault("SPIDERFOOT_HOST", "http://localhost:5001")
 
-from eidolon.agent.report import (  # noqa: E402
+from pydantic import SecretStr  # noqa: E402
+
+from eidolon.core.findings import Credential  # noqa: E402
+from eidolon.core.state import PipelineState  # noqa: E402
+from eidolon.report import dossier_lines  # noqa: E402
+from eidolon.report.model import (  # noqa: E402
     _clean_cred_address,
     _clean_cred_hash,
     _clean_cred_username,
-    _dossier_lines,
 )
-from eidolon.core.models import PipelineState, ToolResult  # noqa: E402
-from eidolon.tools.dehashed import same_mailbox  # noqa: E402
+from eidolon.sources.dehashed import same_mailbox  # noqa: E402
 
 # ── same_mailbox: the exact-email gate ────────────────────────────────────────
 
@@ -66,33 +68,37 @@ def test_clean_cred_hash_strips_dehashed_suffix():
 # ── dossier rendering ─────────────────────────────────────────────────────────
 
 
-def _dehashed_state(entries: list[dict]) -> PipelineState:
-    state = PipelineState(raw_input="x@example.com")
-    state.dehashed_result = ToolResult(
-        success=True,
-        tool="dehashed",
-        input_type="email",
-        input_value="x@example.com",
-        timestamp=datetime.now(timezone.utc),
-        data={"entries": entries},
+def _cred_state(entries: list[dict]) -> PipelineState:
+    return PipelineState(
+        raw_input="x@example.com",
+        findings=[
+            Credential(
+                dedup_key=f"credential:{e['database_name']}:x@example.com:u:{i}",
+                source_breach=e["database_name"],
+                username=e.get("username", ""),
+                password=(
+                    SecretStr(e["password"]) if e.get("password") else None
+                ),  # type: ignore[arg-type]
+            )
+            for i, e in enumerate(entries)
+        ],
     )
-    return state
 
 
 def test_dossier_renders_real_records():
-    state = _dehashed_state(
+    state = _cred_state(
         [
             {"database_name": "Exploit.in", "password": "nichole"},
             {"database_name": "MyFitnessPal", "username": "sunshineaura7"},
             {"database_name": "Empty", "ip_address": "1.2.3.4"},  # nothing juicy
         ]
     )
-    out = "\n".join(_dossier_lines(state))
+    out = "\n".join(dossier_lines(state))
     assert "## Your Actual Leaked Data" in out
     assert "password: nichole" in out
     assert "username: sunshineaura7" in out
     assert "Empty" not in out  # record with no credential is skipped
 
 
-def test_dossier_empty_when_no_dehashed():
-    assert _dossier_lines(PipelineState(raw_input="x@example.com")) == []
+def test_dossier_empty_when_no_credentials():
+    assert dossier_lines(PipelineState(raw_input="x@example.com")) == []

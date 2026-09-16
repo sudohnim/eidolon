@@ -2,6 +2,10 @@
 .env
 output/
 
+# Agent tooling scratch/state (RTK cache, Serena MCP project state)
+.rtk/
+.serena/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

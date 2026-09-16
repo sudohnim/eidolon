@@ -83,16 +83,30 @@ def scan_status(scan_id: str) -> dict:
 
 
 def _skipped_sources(scan_id: str) -> list[str]:
-    """Sources that were not checked (no token), read from the saved scan state."""
+    """Sources that were not checked (no token), read from the saved scan state.
+
+    New artifacts carry the typed ``results`` envelope — read it through the
+    domain API. Old (pre-Finding-domain) artifacts fall back to scanning the
+    legacy ``*_result`` entries.
+    """
+    from eidolon.core.state import ScanState
+
     try:
         data = repository.load_scan_state(scan_id)
     except Exception:
         return []
-    out = []
-    for key, val in data.items():
-        if isinstance(val, dict) and val.get("status") == "skipped":
-            out.append(f"{val.get('tool', key)}: {val.get('error', 'not checked')}")
-    return out
+    if data.get("results"):
+        state = ScanState.model_validate(data)
+        return [
+            f"{c.name}: {c.detail or 'not checked'}"
+            for c in state.coverage()
+            if c.status == "skipped"
+        ]
+    return [
+        f"{val.get('tool', key)}: {val.get('error', 'not checked')}"
+        for key, val in data.items()
+        if isinstance(val, dict) and val.get("status") == "skipped"
+    ]
 
 
 @mcp.tool()
@@ -121,11 +135,11 @@ def reveal_credentials(scan_id: str) -> str:
     This is the explicit gate for the most sensitive output — only call it when
     the user has clearly asked to see the actual leaked credentials.
     """
-    from eidolon.agent.report import _dossier_lines
-    from eidolon.core.models import PipelineState
+    from eidolon.core.state import ScanState
+    from eidolon.report import dossier_lines
 
-    state = PipelineState.model_validate(repository.load_scan_state(scan_id))
-    lines = _dossier_lines(state)
+    state = ScanState.model_validate(repository.load_scan_state(scan_id))
+    lines = dossier_lines(state)
     if not lines:
         return f"No leaked credentials on record for scan {scan_id}."
     return "\n".join(lines)

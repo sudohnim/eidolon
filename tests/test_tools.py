@@ -9,36 +9,36 @@ os.environ.setdefault("APIFY_ACTOR_ID", "test")
 os.environ.setdefault("OLLAMA_HOST", "http://localhost:11434")
 os.environ.setdefault("SPIDERFOOT_HOST", "http://localhost:5001")
 
-import eidolon.tools.ai_audit as ai_audit_tool
-import eidolon.tools.blackbird as blackbird_tool
-import eidolon.tools.broker_scan as broker_scan_tool
-import eidolon.tools.dehashed as dehashed_tool
-import eidolon.tools.ghunt as ghunt_tool
-import eidolon.tools.hibp as hibp_tool
-import eidolon.tools.holehe as holehe_tool
-import eidolon.tools.maigret as maigret_tool
-import eidolon.tools.paste as paste_tool
-import eidolon.tools.phone as phone_tool
-import eidolon.tools.public_records as public_records_tool
-import eidolon.tools.spiderfoot as spiderfoot_tool
-import eidolon.tools.stealer as stealer_tool
-import eidolon.tools.whoxy as whoxy_tool
-from eidolon.core.models import ToolResult
-from eidolon.tools.ai_audit import AiAudit, AiAuditInput, AiAuditOutput
-from eidolon.tools.base import run_to_result
-from eidolon.tools.blackbird import Blackbird, BlackbirdInput, BlackbirdOutput
-from eidolon.tools.broker_scan import BrokerScanInput, BrokerScanOutput
-from eidolon.tools.dehashed import Dehashed, DehashedInput, DehashedOutput
-from eidolon.tools.ghunt import Ghunt, GHuntInput, GHuntOutput
-from eidolon.tools.hibp import Hibp, HibpInput, HibpOutput
-from eidolon.tools.holehe import Holehe, HoleheInput, HoleheOutput
-from eidolon.tools.maigret import Maigret, MaigretInput, MaigretOutput
-from eidolon.tools.paste import Paste, PasteInput, PasteOutput
-from eidolon.tools.phone import PhoneInput, PhoneLookupOutput
-from eidolon.tools.public_records import PublicRecordsOutput
-from eidolon.tools.spiderfoot import Spiderfoot, SpiderfootInput, SpiderfootOutput
-from eidolon.tools.stealer import Stealer, StealerInput, StealerOutput
-from eidolon.tools.whoxy import Whoxy, WhoxyInput, WhoxyOutput
+import eidolon.sources.ai_audit as ai_audit_tool
+import eidolon.sources.blackbird as blackbird_tool
+import eidolon.sources.broker_scan as broker_scan_tool
+import eidolon.sources.dehashed as dehashed_tool
+import eidolon.sources.ghunt as ghunt_tool
+import eidolon.sources.hibp as hibp_tool
+import eidolon.sources.holehe as holehe_tool
+import eidolon.sources.maigret as maigret_tool
+import eidolon.sources.paste as paste_tool
+import eidolon.sources.phone as phone_tool
+import eidolon.sources.public_records as public_records_tool
+import eidolon.sources.spiderfoot as spiderfoot_tool
+import eidolon.sources.stealer as stealer_tool
+import eidolon.sources.whoxy as whoxy_tool
+from eidolon.core.state import ToolResult
+from eidolon.sources.ai_audit import AiAudit, AiAuditInput, AiAuditOutput
+from eidolon.sources.base import run_to_result
+from eidolon.sources.blackbird import Blackbird, BlackbirdInput, BlackbirdOutput
+from eidolon.sources.broker_scan import BrokerScanInput, BrokerScanOutput
+from eidolon.sources.dehashed import Dehashed, DehashedInput, DehashedOutput
+from eidolon.sources.ghunt import Ghunt, GHuntInput, GHuntOutput
+from eidolon.sources.hibp import Hibp, HibpInput, HibpOutput
+from eidolon.sources.holehe import Holehe, HoleheInput, HoleheOutput
+from eidolon.sources.maigret import Maigret, MaigretInput, MaigretOutput
+from eidolon.sources.paste import Paste, PasteInput, PasteOutput
+from eidolon.sources.phone import PhoneInput, PhoneLookupOutput
+from eidolon.sources.public_records import PublicRecordsOutput
+from eidolon.sources.spiderfoot import Spiderfoot, SpiderfootInput, SpiderfootOutput
+from eidolon.sources.stealer import Stealer, StealerInput, StealerOutput
+from eidolon.sources.whoxy import Whoxy, WhoxyInput, WhoxyOutput
 
 
 class TestHibpTool:
@@ -438,7 +438,7 @@ class TestPasteTool:
     def test_is_recent_helper(self):
         from datetime import datetime, timedelta, timezone
 
-        from eidolon.tools.paste import _is_recent
+        from eidolon.sources.paste import _is_recent
 
         recent = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
         old = (datetime.now(timezone.utc) - timedelta(days=200)).isoformat()
@@ -446,7 +446,7 @@ class TestPasteTool:
         assert _is_recent(old) is False
 
     def test_paste_url_helper(self):
-        from eidolon.tools.paste import _paste_url
+        from eidolon.sources.paste import _paste_url
 
         assert "pastebin.com/abc123" in _paste_url("Pastebin", "abc123")
         assert "pastie.org" in _paste_url("Pastie", "xyz")
@@ -500,18 +500,17 @@ class TestDeterministicPivots:
     """Tests for _extract_deterministic_pivots in agent/nodes.py."""
 
     def _make_state(self, primary_email: str, dehashed_entries: list[dict]):
-        from datetime import datetime, timezone
+        from eidolon.core.findings import Credential
+        from eidolon.core.state import InputClassification, PipelineState
 
-        from eidolon.core.models import InputClassification, PipelineState, ToolResult
-
-        dehashed_result = ToolResult(
-            success=True,
-            tool="dehashed",
-            input_type="email",
-            input_value=primary_email,
-            timestamp=datetime.now(timezone.utc),
-            data={"entries": dehashed_entries, "total": len(dehashed_entries)},
-        )
+        findings = [
+            Credential(
+                dedup_key=f"credential:{e.get('database_name', 'db')}:{e['email']}:u:nosec",
+                source_breach=e.get("database_name", "db"),
+                email=e["email"],
+            )
+            for e in dehashed_entries
+        ]
         return PipelineState(
             raw_input=primary_email,
             classifications=[
@@ -519,11 +518,11 @@ class TestDeterministicPivots:
                     type="email", value=primary_email, raw=primary_email
                 )
             ],
-            dehashed_result=dehashed_result,
+            findings=findings,
         )
 
     def test_plus_alias_detected(self):
-        from eidolon.agent.nodes import _extract_deterministic_pivots
+        from eidolon.pipeline.correlate import _extract_deterministic_pivots
 
         state = self._make_state(
             "user@gmail.com",
@@ -536,7 +535,7 @@ class TestDeterministicPivots:
         assert "alias" in pivots[0]["reason"].lower()
 
     def test_alternate_domain_dropped(self):
-        from eidolon.agent.nodes import _extract_deterministic_pivots
+        from eidolon.pipeline.correlate import _extract_deterministic_pivots
 
         # Same local-part, different domain — NOT evidence it's the same person.
         state = self._make_state(
@@ -546,7 +545,7 @@ class TestDeterministicPivots:
         assert _extract_deterministic_pivots(state) == []
 
     def test_gmail_dot_variant_pivots(self):
-        from eidolon.agent.nodes import _extract_deterministic_pivots
+        from eidolon.pipeline.correlate import _extract_deterministic_pivots
 
         # nichole.lopez is the same mailbox as nicholelopez, but HIBP treats the
         # string as distinct — so it's a grounded, worth-searching alternate.
@@ -559,7 +558,7 @@ class TestDeterministicPivots:
         assert pivots[0]["value"] == "nichole.lopez@gmail.com"
 
     def test_original_email_not_duplicated(self):
-        from eidolon.agent.nodes import _extract_deterministic_pivots
+        from eidolon.pipeline.correlate import _extract_deterministic_pivots
 
         state = self._make_state(
             "user@gmail.com",
@@ -569,7 +568,7 @@ class TestDeterministicPivots:
         assert pivots == []
 
     def test_dedup_across_entries(self):
-        from eidolon.agent.nodes import _extract_deterministic_pivots
+        from eidolon.pipeline.correlate import _extract_deterministic_pivots
 
         state = self._make_state(
             "user@gmail.com",
@@ -582,7 +581,7 @@ class TestDeterministicPivots:
         assert len(pivots) == 1
 
     def test_capped_at_three(self):
-        from eidolon.agent.nodes import _extract_deterministic_pivots
+        from eidolon.pipeline.correlate import _extract_deterministic_pivots
 
         # Only same-mailbox (+alias) variants qualify, so use four of those.
         state = self._make_state(
@@ -598,8 +597,8 @@ class TestDeterministicPivots:
         assert len(pivots) == 3
 
     def test_no_dehashed_result_returns_empty(self):
-        from eidolon.agent.nodes import _extract_deterministic_pivots
-        from eidolon.core.models import InputClassification, PipelineState
+        from eidolon.core.state import InputClassification, PipelineState
+        from eidolon.pipeline.correlate import _extract_deterministic_pivots
 
         state = PipelineState(
             raw_input="user@gmail.com",
@@ -616,7 +615,7 @@ class TestPivotValueValidation:
     """_valid_pivot_value guards against LLM-hallucinated pivot values."""
 
     def test_ip_pivot_requires_real_ip(self):
-        from eidolon.agent.nodes import _valid_pivot_value
+        from eidolon.pipeline.correlate import _valid_pivot_value
 
         assert _valid_pivot_value("ip", "8.8.8.8")
         assert _valid_pivot_value("ip", "2001:4860:4860::8888")
@@ -626,7 +625,7 @@ class TestPivotValueValidation:
         )
 
     def test_email_and_phone_pivots_sanity_checked(self):
-        from eidolon.agent.nodes import _valid_pivot_value
+        from eidolon.pipeline.correlate import _valid_pivot_value
 
         assert _valid_pivot_value("email", "a@b.com")
         assert not _valid_pivot_value("email", "no address here")
@@ -634,7 +633,7 @@ class TestPivotValueValidation:
         assert not _valid_pivot_value("phone", "her mobile number")
 
     def test_freeform_types_stay_permissive(self):
-        from eidolon.agent.nodes import _valid_pivot_value
+        from eidolon.pipeline.correlate import _valid_pivot_value
 
         assert _valid_pivot_value("username", "johndoe")
         assert _valid_pivot_value("name", "john doe")

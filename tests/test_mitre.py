@@ -6,7 +6,6 @@ that reads scan state.
 """
 
 import os
-from datetime import datetime, timezone
 
 os.environ.setdefault("TEST_MODE", "true")
 os.environ.setdefault("HIBP_API_KEY", "test")
@@ -18,9 +17,10 @@ os.environ.setdefault("SPIDERFOOT_HOST", "http://localhost:5001")
 
 import structlog  # noqa: E402
 
-from eidolon.agent.nodes import _extract_attack_signals  # noqa: E402
-from eidolon.core.models import PipelineState, ToolResult  # noqa: E402
-from eidolon.tools.mitre import (  # noqa: E402
+from eidolon.analysis.threat import _extract_attack_signals  # noqa: E402
+from eidolon.core.findings import InfostealerLog  # noqa: E402
+from eidolon.core.state import PipelineState  # noqa: E402
+from eidolon.sources.mitre import (  # noqa: E402
     MitreAttack,
     MitreInput,
     MitreOutput,
@@ -32,14 +32,16 @@ _LOG = structlog.get_logger()
 
 def _stealer_state(found: bool = True) -> PipelineState:
     state = PipelineState(raw_input="x@example.com")
-    state.stealer_result = ToolResult(
-        success=True,
-        tool="stealer",
-        input_type="email",
-        input_value="x@example.com",
-        timestamp=datetime.now(timezone.utc),
-        data={"found": found, "stealer_count": 2, "malware_families": ["RedLine"]},
-    )
+    if found:
+        state.findings = [
+            InfostealerLog(
+                dedup_key=f"stealer:PC{i}:2024:RedLine",
+                malware_family="RedLine",
+                computer_name=f"PC{i}",
+                date_compromised="2024-11-02",
+            )
+            for i in range(2)
+        ]
     return state
 
 

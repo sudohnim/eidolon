@@ -13,8 +13,8 @@ def test_analysis_completes_without_ollama(monkeypatch):
 
     monkeypatch.setattr(langchain_ollama, "ChatOllama", _Boom)
 
-    from eidolon.agent.nodes import analysis_node
-    from eidolon.core.models import InputClassification, PipelineState
+    from eidolon.analysis.narrative import analysis_node
+    from eidolon.core.state import InputClassification, PipelineState
 
     state = PipelineState(
         raw_input="a@b.com",

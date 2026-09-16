@@ -15,8 +15,8 @@ os.environ.setdefault("SPIDERFOOT_HOST", "http://localhost:5001")
 os.environ["RESULTS_OUTPUT_PATH"] = "/tmp/osint_test_output/"
 os.environ["AI_PLATFORMS"] = "claude,chatgpt,gemini,grok"
 
-from eidolon.agent.graph import build_graph
-from eidolon.core.models import AnalysisResult, PipelineState
+from eidolon.core.state import AnalysisResult, PipelineState
+from eidolon.pipeline.graph import build_graph
 
 
 @pytest.fixture(autouse=True)
@@ -44,41 +44,50 @@ class TestFullPipeline:
         c_type = c.type if hasattr(c, "type") else c["type"]
         assert c_type == "email"
 
-    def test_hibp_result_present(self):
+    def test_results_envelope_present(self):
         graph = build_graph()
         state = PipelineState(raw_input="test@example.com")
         result = graph.invoke(state)
-        hibp = result["hibp_result"]
-        assert hibp is not None
-        success = hibp.success if hasattr(hibp, "success") else hibp["success"]
-        assert success is True
+        results = result["results"]
+        assert results is not None
+        # every email-applicable source ran and recorded its envelope
+        for name in (
+            "hibp",
+            "dehashed",
+            "whoxy",
+            "paste",
+            "stealer",
+            "spiderfoot",
+            "holehe",
+            "blackbird",
+            "maigret",
+            "ghunt",
+            "commoncrawl",
+        ):
+            assert name in results, f"{name} missing from results"
+            status = (
+                results[name].status
+                if hasattr(results[name], "status")
+                else results[name]["status"]
+            )
+            assert status == "ok"
 
-    def test_broker_result_present(self):
+    def test_findings_populated(self):
         graph = build_graph()
         state = PipelineState(raw_input="test@example.com")
         result = graph.invoke(state)
-        broker = result["broker_result"]
-        assert broker is not None
-        success = broker.success if hasattr(broker, "success") else broker["success"]
-        assert success is True
+        findings = result["findings"]
+        assert findings
+        kinds = {f.kind for f in findings}
+        assert "breach" in kinds and "credential" in kinds
 
-    def test_spiderfoot_result_present(self):
+    def test_mitre_techniques_present(self):
         graph = build_graph()
         state = PipelineState(raw_input="test@example.com")
         result = graph.invoke(state)
-        sf = result["spiderfoot_result"]
-        assert sf is not None
-        success = sf.success if hasattr(sf, "success") else sf["success"]
-        assert success is True
-
-    def test_ai_audit_result_present(self):
-        graph = build_graph()
-        state = PipelineState(raw_input="test@example.com")
-        result = graph.invoke(state)
-        ai = result["ai_audit_result"]
-        assert ai is not None
-        success = ai.success if hasattr(ai, "success") else ai["success"]
-        assert success is True
+        techniques = result["mitre_techniques"]
+        assert techniques  # the fixture scan has infostealer + password signals
+        assert all(t.technique_id.startswith("T") for t in techniques)
 
     def test_analysis_result_present(self):
         graph = build_graph()

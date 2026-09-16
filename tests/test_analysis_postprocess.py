@@ -3,10 +3,12 @@
 The TEST_MODE pipeline returns the analysis fixture directly, so it never
 exercises _postprocess_analysis. These tests cover the repair/normalization and
 deterministic-remediation helpers in isolation.
+
+Since REFACTOR.4 the helpers read the Finding domain, so these tests construct
+findings directly (the shape the adapters emit).
 """
 
 import os
-from datetime import datetime, timezone
 
 os.environ.setdefault("TEST_MODE", "true")
 os.environ.setdefault("HIBP_API_KEY", "test")
@@ -16,20 +18,24 @@ os.environ.setdefault("SCRAPFLY_API_KEY", "test")
 os.environ.setdefault("OLLAMA_HOST", "http://localhost:11434")
 os.environ.setdefault("SPIDERFOOT_HOST", "http://localhost:5001")
 
-from eidolon.agent import nodes
-from eidolon.core.models import InputClassification, PipelineState, ToolResult
+from datetime import date  # noqa: E402
 
-
-def _tr(tool: str, data: dict) -> ToolResult:
-    return ToolResult(
-        success=True,
-        tool=tool,
-        input_type="email",
-        input_value="x@example.com",
-        timestamp=datetime.now(timezone.utc),
-        data=data,
-    )
-
+from eidolon.analysis import risk as nodes  # noqa: E402
+from eidolon.analysis.digest import _build_analysis_digest  # noqa: E402
+from eidolon.analysis.narrative import (  # noqa: E402
+    _postprocess_analysis,
+    _save_raw_response,
+    _validate_analysis,
+)
+from eidolon.core.findings import (
+    Account,
+    Breach,
+    BrokerExposure,
+    Credential,
+    InfostealerLog,
+    PhoneIntel,
+)
+from eidolon.core.state import InputClassification, PipelineState  # noqa: E402
 
 # ── what_is_known normalization ───────────────────────────────────────────────
 
@@ -112,9 +118,20 @@ def test_clean_addresses_keeps_real_drops_geo_fragments():
 # ── top_risks grounding ───────────────────────────────────────────────────────
 
 
+def _breach(name: str, year: int | None = None, password_class: bool = False) -> Breach:
+    return Breach(
+        dedup_key=f"breach:{name}",
+        title=name,
+        breach_date=date(year, 1, 1) if year else None,
+        data_classes=(
+            ["Email addresses", "Passwords"] if password_class else ["Email addresses"]
+        ),
+    )
+
+
 def test_filter_top_risks_drops_hallucinated_example():
     state = PipelineState(raw_input="x@example.com")
-    state.hibp_result = _tr("hibp", {"breaches": [{"name": "LinkedIn"}]})
+    state.findings = [_breach("LinkedIn")]
     risks = [
         "ParkMobile breach exposed your license plate + phone number.",
         "LinkedIn 2012 exposed your password hash.",
@@ -126,10 +143,10 @@ def test_filter_top_risks_drops_hallucinated_example():
 
 def test_filter_top_risks_keeps_grounded_brand():
     state = PipelineState(raw_input="x@example.com")
-    state.hibp_result = _tr("hibp", {"breaches": [{"name": "ParkMobile"}]})
+    state.findings = [_breach("ParkMobile")]
     risks = ["ParkMobile breach exposed your license plate."]
     out = nodes._filter_top_risks(risks, state)
-    assert out == risks  # grounded in real scan state, so kept
+    assert out == risks  # grounded in real scan findings, so kept
 
 
 # ── deterministic remediation ─────────────────────────────────────────────────
@@ -143,24 +160,10 @@ def test_monitoring_always_present():
 
 def test_change_passwords_from_breaches():
     state = PipelineState(raw_input="x@example.com")
-    state.hibp_result = _tr(
-        "hibp",
-        {
-            "breach_count": 2,
-            "breaches": [
-                {
-                    "name": "LinkedIn",
-                    "breach_date": "2012-05-05",
-                    "data_classes": ["Email addresses", "Passwords"],
-                },
-                {
-                    "name": "SomeForum",
-                    "breach_date": "2018-01-01",
-                    "data_classes": ["Email addresses"],
-                },
-            ],
-        },
-    )
+    state.findings = [
+        _breach("LinkedIn", 2012, password_class=True),
+        _breach("SomeForum", 2018, password_class=False),
+    ]
     rem = nodes._build_deterministic_remediation(state)
     assert rem["change_passwords"]
     assert "LinkedIn (2012)" in rem["change_passwords"][0]
@@ -169,10 +172,10 @@ def test_change_passwords_from_breaches():
 
 def test_enable_2fa_and_reviews_from_active_accounts():
     state = PipelineState(raw_input="x@example.com")
-    state.holehe_result = _tr("holehe", {"platforms_found": [{"platform": "Spotify"}]})
-    state.blackbird_result = _tr(
-        "blackbird", {"accounts_found": [{"platform": "Eventbrite"}]}
-    )
+    state.findings = [
+        Account(dedup_key="account:spotify", platform="Spotify", active=True),
+        Account(dedup_key="account:eventbrite", platform="Eventbrite", active=True),
+    ]
     rem = nodes._build_deterministic_remediation(state)
     assert "Spotify" in rem["enable_2fa"][0]
     assert "Eventbrite" in rem["enable_2fa"][0]
@@ -181,14 +184,21 @@ def test_enable_2fa_and_reviews_from_active_accounts():
 
 def test_sim_swap_when_phone_valid():
     state = PipelineState(raw_input="x@example.com")
-    state.phone_result = _tr("phone", {"valid": True, "line_type": "mobile"})
+    state.findings = [
+        PhoneIntel(
+            dedup_key="phone:+1555", phone="+1555", valid=True, line_type="mobile"
+        )
+    ]
     rem = nodes._build_deterministic_remediation(state)
     assert rem["sim_swap_hardening"]
 
 
 def test_broker_optouts_when_brokers_found():
     state = PipelineState(raw_input="x@example.com")
-    state.broker_result = _tr("broker_scan", {"brokers_found_count": 3})
+    state.findings = [
+        BrokerExposure(dedup_key=f"broker:{d}", broker=d)
+        for d in ("a.com", "b.com", "c.com")
+    ]
     rem = nodes._build_deterministic_remediation(state)
     assert rem["broker_optouts"]
     assert "easyoptouts" in rem["broker_optouts"][0].lower()
@@ -196,7 +206,9 @@ def test_broker_optouts_when_brokers_found():
 
 def test_stealer_hygiene_priority_item():
     state = PipelineState(raw_input="x@example.com")
-    state.stealer_result = _tr("stealer", {"found": True})
+    state.findings = [
+        InfostealerLog(dedup_key="stealer:pc:2024:RedLine", malware_family="RedLine")
+    ]
     rem = nodes._build_deterministic_remediation(state)
     assert "infostealer" in rem["account_hygiene"][0].lower()
     assert rem["sim_swap_hardening"]  # also triggered by stealer
@@ -207,7 +219,7 @@ def test_stealer_hygiene_priority_item():
 
 def test_finalize_deterministic_overrides_and_coerces():
     state = PipelineState(raw_input="x@example.com")
-    state.broker_result = _tr("broker_scan", {"brokers_found_count": 1})
+    state.findings = [BrokerExposure(dedup_key="broker:x.com", broker="X")]
     llm_rem = {
         "broker_optouts": ["model-supplied (should be overridden)"],
         # account_hygiene as the {action, platforms} object shape + an empty item
@@ -247,11 +259,12 @@ def _valid_analysis() -> dict:
         "what_is_known": {},
         "top_risks": [],
         "remediation": {},
+        "findings_context": [],
     }
 
 
 def test_validate_analysis_passes_on_complete_dict():
-    nodes._validate_analysis(_valid_analysis())  # must not raise
+    _validate_analysis(_valid_analysis())  # must not raise
 
 
 def test_validate_analysis_hard_fails_on_missing_core_field():
@@ -261,7 +274,7 @@ def test_validate_analysis_hard_fails_on_missing_core_field():
     bad = _valid_analysis()
     del bad["overall_risk_score"]  # model dropped a field it alone owns
     with pytest.raises(ValidationError):
-        nodes._validate_analysis(bad)
+        _validate_analysis(bad)
 
 
 def test_validate_analysis_hard_fails_on_bad_risk_level():
@@ -271,14 +284,14 @@ def test_validate_analysis_hard_fails_on_bad_risk_level():
     bad = _valid_analysis()
     bad["overall_risk_level"] = "catastrophic"  # not in the Literal
     with pytest.raises(ValidationError):
-        nodes._validate_analysis(bad)
+        _validate_analysis(bad)
 
 
 def test_postprocessed_output_satisfies_hard_contract():
     # A realistic model payload (object-shaped items, sparse remediation) must,
     # after post-processing, pass the hard schema contract.
     state = PipelineState(raw_input="x@example.com")
-    state.hibp_result = _tr("hibp", {"breach_count": 1, "breaches": [{"name": "X"}]})
+    state.findings = [_breach("X", 2020)]
     raw = {
         "overall_risk_score": 70,
         "overall_risk_level": "high",
@@ -289,8 +302,8 @@ def test_postprocessed_output_satisfies_hard_contract():
         "top_risks": ["a real risk"],
         # remediation entirely omitted by the model
     }
-    out = nodes._postprocess_analysis(state, raw)
-    nodes._validate_analysis(out)  # must not raise
+    out = _postprocess_analysis(state, raw)
+    _validate_analysis(out)  # must not raise
 
 
 # ── D: pre-digest cleaning (model never sees junk) ────────────────────────────
@@ -301,18 +314,29 @@ def test_digest_strips_junk_usernames_and_geo_fragments():
     state.classifications = [
         InputClassification(type="email", value="x@example.com", raw="x@example.com")
     ]
-    state.dehashed_result = _tr(
-        "dehashed",
-        {
-            "total": 3,
-            "unique_usernames": ["1", "realhandle"],
-            "unique_addresses": [
-                "US, san diego ca us 92115",
-                "519 Idaho Ave Apt 4, Santa Monica, 90403",
-            ],
-        },
-    )
-    digest = nodes._build_analysis_digest(state)
+    state.findings = [
+        Credential(
+            dedup_key="credential:db1:x@x.com:1:pw:abc",
+            source_breach="db1",
+            username="1",
+        ),
+        Credential(
+            dedup_key="credential:db2:x@x.com:2:pw:abd",
+            source_breach="db2",
+            username="realhandle",
+        ),
+        Credential(
+            dedup_key="credential:db3:x@x.com:3:nosec",
+            source_breach="db3",
+            address="US, san diego ca us 92115",
+        ),
+        Credential(
+            dedup_key="credential:db4:x@x.com:4:nosec",
+            source_breach="db4",
+            address="519 Idaho Ave Apt 4, Santa Monica, 90403",
+        ),
+    ]
+    digest = _build_analysis_digest(state)
     # junk never reaches the model
     assert "realhandle" in digest
     assert (
@@ -328,24 +352,32 @@ def test_digest_strips_junk_usernames_and_geo_fragments():
 
 def _breach_heavy_state() -> PipelineState:
     state = PipelineState(raw_input="x@example.com")
-    state.hibp_result = _tr(
-        "hibp",
-        {
-            "breach_count": 29,
-            "breaches": [
-                {
-                    "name": "Adobe",
-                    "breach_date": "2013-10-04",
-                    "data_classes": ["Email addresses", "Passwords"],
-                }
-            ],
-        },
-    )
-    state.dehashed_result = _tr(
-        "dehashed",
-        {"total": 44, "plaintext_password_count": 9, "hashed_password_count": 24},
-    )
-    state.holehe_result = _tr("holehe", {"platforms_found": [{"platform": "Spotify"}]})
+    state.findings = [
+        _breach("Adobe", 2013, password_class=True),
+        Account(dedup_key="account:spotify", platform="Spotify", active=True),
+    ]
+    # 29 breaches total (Adobe + 28 more) to cross the high-risk floor
+    state.findings += [
+        _breach(f"Filler{i}", 2015 + (i % 5), password_class=(i % 2 == 0))
+        for i in range(28)
+    ]
+    # breach dumps expose 9 plaintext + 24 hashed passwords
+    state.findings += [
+        Credential(
+            dedup_key=f"credential:db:x@x.com:{i}:pw:h{i}",
+            source_breach="db",
+            password="plain",  # type: ignore[arg-type]
+        )
+        for i in range(9)
+    ]
+    state.findings += [
+        Credential(
+            dedup_key=f"credential:db:x@x.com:{i}:hash:h{i}",
+            source_breach="db",
+            password_hash="a" * 32,
+        )
+        for i in range(24)
+    ]
     return state
 
 
@@ -356,11 +388,11 @@ def test_state_risk_floor_high_for_breach_heavy_target():
 
 def test_postprocess_salvages_a_full_report_when_llm_fails():
     # Empty dict = the LLM returned nothing parseable.
-    out = nodes._postprocess_analysis(_breach_heavy_state(), {})
+    out = _postprocess_analysis(_breach_heavy_state(), {})
     # risk is never understated to 0/low
     assert out["overall_risk_score"] >= 67
     assert out["overall_risk_level"] == "high"
-    # what's-known and remediation are built from state, not the (absent) LLM
+    # what's-known and remediation are built from findings, not the (absent) LLM
     assert out["what_is_known"]["breach_history"]
     assert out["what_is_known"]["credentials_exposed"]
     assert out["remediation"]["change_passwords"]
@@ -368,11 +400,11 @@ def test_postprocess_salvages_a_full_report_when_llm_fails():
     # a factual summary stands in for the missing narrative
     assert "29 known data breach" in out["identity_summary"]
     # still satisfies the hard schema contract
-    nodes._validate_analysis(out)
+    _validate_analysis(out)
 
 
 def test_postprocess_keeps_llm_narrative_when_present():
-    out = nodes._postprocess_analysis(
+    out = _postprocess_analysis(
         _breach_heavy_state(),
         {"identity_summary": "Bespoke narrative from the model.", "top_risks": []},
     )

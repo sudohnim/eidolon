@@ -5,10 +5,11 @@ os.environ.setdefault("TEST_MODE", "true")
 os.environ.setdefault("OLLAMA_HOST", "http://localhost:11434")
 os.environ.setdefault("SPIDERFOOT_HOST", "http://localhost:5001")
 
-from eidolon.agent.nodes import _commoncrawl_targets, commoncrawl_node
-from eidolon.core.models import PipelineState, ToolResult
-from eidolon.tools.base import run_to_result
-from eidolon.tools.commoncrawl import (
+from eidolon.core.findings import Account, Finding
+from eidolon.core.registry import commoncrawl_input
+from eidolon.core.state import PipelineState, ToolResult
+from eidolon.sources.base import run_to_result
+from eidolon.sources.commoncrawl import (
     CommonCrawl,
     CommonCrawlInput,
     CommonCrawlOutput,
@@ -76,22 +77,40 @@ class TestCommonCrawlTool:
 
 
 class _Resp:
-    """Minimal stand-in for a requests.Response for _query_target tests."""
+    """Minimal stand-in for an httpx.Response for _query_target tests."""
 
     def __init__(self, status_code: int, text: str = ""):
         self.status_code = status_code
         self.text = text
 
 
+class _MockClient:
+    def __init__(self, get_fn):
+        self._get = get_fn
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return None
+
+    def get(self, *a, **k):
+        return self._get(*a, **k)
+
+
 class TestQueryTarget:
     def test_parses_jsonlines_captures(self, monkeypatch):
-        import eidolon.tools.commoncrawl as cc
+        import eidolon.sources.commoncrawl as cc
 
         body = (
             '{"url": "https://janedoe.com/", "timestamp": "20260101000000"}\n'
             '{"url": "https://janedoe.com/about", "timestamp": "20260102000000"}\n'
         )
-        monkeypatch.setattr(cc.requests, "get", lambda *a, **k: _Resp(200, body))
+
+        def mock_get(*a, **k):
+            return _Resp(200, body)
+
+        monkeypatch.setattr(cc, "client", lambda *a, **k: _MockClient(mock_get))
         log = __import__("structlog").get_logger()
         status, prop = _query_target("https://index.example/cdx", "janedoe.com", log)
         assert status == "matched"
@@ -101,9 +120,12 @@ class TestQueryTarget:
         assert prop.sample_timestamp == "20260101000000"
 
     def test_404_is_absent(self, monkeypatch):
-        import eidolon.tools.commoncrawl as cc
+        import eidolon.sources.commoncrawl as cc
 
-        monkeypatch.setattr(cc.requests, "get", lambda *a, **k: _Resp(404, ""))
+        def mock_get(*a, **k):
+            return _Resp(404, "")
+
+        monkeypatch.setattr(cc, "client", lambda *a, **k: _MockClient(mock_get))
         log = __import__("structlog").get_logger()
         assert _query_target("https://index.example/cdx", "nope.com", log) == (
             "absent",
@@ -111,9 +133,12 @@ class TestQueryTarget:
         )
 
     def test_empty_body_is_absent(self, monkeypatch):
-        import eidolon.tools.commoncrawl as cc
+        import eidolon.sources.commoncrawl as cc
 
-        monkeypatch.setattr(cc.requests, "get", lambda *a, **k: _Resp(200, "   "))
+        def mock_get(*a, **k):
+            return _Resp(200, "   ")
+
+        monkeypatch.setattr(cc, "client", lambda *a, **k: _MockClient(mock_get))
         log = __import__("structlog").get_logger()
         assert _query_target("https://index.example/cdx", "nope.com", log) == (
             "absent",
@@ -121,14 +146,14 @@ class TestQueryTarget:
         )
 
     def test_network_error_is_error_not_absent(self, monkeypatch):
-        import eidolon.tools.commoncrawl as cc
+        import eidolon.sources.commoncrawl as cc
 
-        monkeypatch.setattr(cc.time, "sleep", lambda *a, **k: None)  # no retry delay
+        monkeypatch.setattr(cc.time, "sleep", lambda *a, **k: None)
 
         def _raise(*a, **k):
-            raise cc.requests.RequestException("boom")
+            raise cc.httpx.RequestError("boom")
 
-        monkeypatch.setattr(cc.requests, "get", _raise)
+        monkeypatch.setattr(cc, "client", lambda *a, **k: _MockClient(_raise))
         log = __import__("structlog").get_logger()
         # A network failure is "error" (could-not-check), never "absent".
         assert _query_target("https://index.example/cdx", "x.com", log) == (
@@ -137,7 +162,7 @@ class TestQueryTarget:
         )
 
     def test_transient_504_retries_then_errors(self, monkeypatch):
-        import eidolon.tools.commoncrawl as cc
+        import eidolon.sources.commoncrawl as cc
 
         monkeypatch.setattr(cc.time, "sleep", lambda *a, **k: None)
         calls = {"n": 0}
@@ -146,7 +171,7 @@ class TestQueryTarget:
             calls["n"] += 1
             return _Resp(504, "")
 
-        monkeypatch.setattr(cc.requests, "get", _504)
+        monkeypatch.setattr(cc, "client", lambda *a, **k: _MockClient(_504))
         log = __import__("structlog").get_logger()
         status, prop = _query_target("https://index.example/cdx", "x.com", log)
         assert status == "error" and prop is None
@@ -154,93 +179,109 @@ class TestQueryTarget:
 
 
 class TestTargetDerivation:
+    def _targets(self, state):
+        inp = commoncrawl_input(state)
+        return list(inp.targets) if inp is not None else []
+
     def test_no_candidates_returns_empty(self):
         state = PipelineState(raw_input="test@example.com")
-        assert _commoncrawl_targets(state) == []
+        assert self._targets(state) == []
+
+    def _domain_finding(self, domain: str) -> Finding:
+        return Finding(
+            kind="registered_domain",
+            dedup_key=f"domain:{domain}",
+            title=domain,
+            payload={"domain": domain},
+        )
 
     def test_whoxy_domains_first(self):
         state = PipelineState(
             raw_input="test@example.com",
-            whoxy_result=_result(
-                "whoxy",
-                {"domains": [{"domain_name": "janedoe.com"}, {"domain_name": "jd.io"}]},
-            ),
+            findings=[
+                self._domain_finding("janedoe.com"),
+                self._domain_finding("jd.io"),
+            ],
         )
-        targets = _commoncrawl_targets(state)
+        targets = self._targets(state)
         assert targets[:2] == ["janedoe.com", "jd.io"]
 
     def test_maigret_profile_urls_included(self):
         state = PipelineState(
             raw_input="test@example.com",
-            sherlock_result=_result(
-                "maigret",
-                {
-                    "profiles_found": [
-                        {"platform": "GitHub", "url": "https://github.com/jdoe"},
-                    ]
-                },
-            ),
+            findings=[
+                Account(
+                    dedup_key="account:github",
+                    platform="GitHub",
+                    url="https://github.com/jdoe",
+                )
+            ],
         )
-        assert "https://github.com/jdoe" in _commoncrawl_targets(state)
+        assert "https://github.com/jdoe" in self._targets(state)
 
     def test_blackbird_probe_urls_filtered(self):
         # Internal API probe URLs (api., /lookup, ?email=) are dropped by _clean_url.
         state = PipelineState(
             raw_input="test@example.com",
-            blackbird_result=_result(
-                "blackbird",
-                {
-                    "accounts_found": [
-                        {
-                            "platform": "Adobe",
-                            "url": "https://auth.services.adobe.com/api/users/lookup",
-                        },
-                        {"platform": "Real", "url": "https://realprofile.example/jdoe"},
-                    ]
-                },
-            ),
+            findings=[
+                Account(
+                    dedup_key="account:adobe",
+                    platform="Adobe",
+                    url="https://auth.services.adobe.com/api/users/lookup",
+                ),
+                Account(
+                    dedup_key="account:real",
+                    platform="Real",
+                    url="https://realprofile.example/jdoe",
+                ),
+            ],
         )
-        targets = _commoncrawl_targets(state)
+        targets = self._targets(state)
         assert "https://realprofile.example/jdoe" in targets
-        assert all("lookup" not in t for t in targets)
+        assert all("lookup" not in x for x in targets)
 
     def test_dedupe_and_cap_at_five(self):
         state = PipelineState(
             raw_input="test@example.com",
-            whoxy_result=_result(
-                "whoxy",
-                {
-                    "domains": [{"domain_name": f"site{i}.com"} for i in range(8)]
-                    + [{"domain_name": "SITE0.com"}]  # case-insensitive dup
-                },
-            ),
+            findings=[self._domain_finding(f"site{i}.com") for i in range(8)]
+            + [self._domain_finding("SITE0.com")],  # case-insensitive dup
         )
-        targets = _commoncrawl_targets(state)
+        targets = self._targets(state)
         assert len(targets) == 5
         # case-insensitive dedupe kept only the first "site0.com"
-        assert sum(t.lower() == "site0.com" for t in targets) == 1
+        assert sum(x.lower() == "site0.com" for x in targets) == 1
 
 
 class TestCommonCrawlNode:
     def test_skips_when_no_targets(self):
         state = PipelineState(raw_input="test@example.com")
-        out = commoncrawl_node(state)
-        assert out.commoncrawl_result is None
+        inp = commoncrawl_input(state)
+        assert inp is None  # not applicable -> absent from coverage
 
     def test_runs_and_stores_result_in_test_mode(self):
         # With a candidate target, the node runs the tool (TEST_MODE fixture) and
         # stores a successful ToolResult.
         state = PipelineState(
             raw_input="test@example.com",
-            whoxy_result=_result(
-                "whoxy", {"domains": [{"domain_name": "janedoe.com"}]}
-            ),
+            findings=[
+                Finding(
+                    kind="registered_domain",
+                    dedup_key="domain:janedoe.com",
+                    title="janedoe.com",
+                    payload={"domain": "janedoe.com"},
+                )
+            ],
         )
-        out = commoncrawl_node(state)
-        assert out.commoncrawl_result is not None
-        assert out.commoncrawl_result.success is True
-        assert out.commoncrawl_result.tool == "commoncrawl"
-        assert out.commoncrawl_result.data["present"] is True
+        from eidolon.core.registry import REGISTRY
+        from eidolon.pipeline.collect import _default_source_node
+
+        spec = next(s for s in REGISTRY if s.name == "commoncrawl")
+        out = _default_source_node(spec)(state)
+        assert "commoncrawl" in out.results
+        assert out.results["commoncrawl"].status == "ok"
+        assert out.results["commoncrawl"].summary.startswith(
+            "present in the public web archive"
+        )
 
 
 def test_matched_property_model_defaults():
