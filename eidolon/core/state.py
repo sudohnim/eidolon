@@ -3,7 +3,7 @@ from typing import Literal, TypeVar
 
 from pydantic import BaseModel
 
-from eidolon.core.findings import Finding, FindingUnion
+from eidolon.core.findings import Finding, FindingUnion, Provenance
 
 InputType = Literal["email", "phone", "name", "org"]
 
@@ -45,6 +45,9 @@ class SourceResult(BaseModel):
     findings: list[FindingUnion] = []
     detail: str | None = None
     summary: str = ""
+    #: the run's stamped Provenance (EVIDENCE.1) — sha256/source_host/latency,
+    #: present on every ran source; None only when a source never ran.
+    evidence: Provenance | None = None
 
 
 class SourceCoverage(BaseModel):

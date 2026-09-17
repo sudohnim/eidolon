@@ -210,6 +210,16 @@ class TestPerSourceMapping:
         assert sr.name == "hibp"
         assert sr.summary == "3 breaches"
 
+    def test_response_sha256_is_deterministic_across_runs(self):
+        """EVIDENCE.1 — the replay hash is a pure function of the typed output:
+        the same fixture input yields the identical 64-hex sha256 every time."""
+        a = collect(Hibp(), HibpInput(input_type="email", value=EMAIL))
+        b = collect(Hibp(), HibpInput(input_type="email", value=EMAIL))
+        assert a.evidence and b.evidence
+        assert a.evidence.response_sha256
+        assert a.evidence.response_sha256 == b.evidence.response_sha256
+        assert len(a.evidence.response_sha256) == 64
+
 
 class TestCollectEnvelopePaths:
     def test_skipped_source_emits_no_findings(self, monkeypatch):

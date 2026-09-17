@@ -73,8 +73,13 @@ class Blackbird(Tool[BlackbirdInput, BlackbirdOutput]):
     ) -> BlackbirdOutput:
         import os
 
-        env = {"PYTHONPATH": str(BLACKBIRD_DIR / "src")}
-        env.update({k: v for k, v in os.environ.items() if k not in env})
+        # OPSEC.4: pass the active policy's proxy through the child env so this
+        # subprocess doesn't egress in the clear while HTTP tools are proxied.
+        from eidolon.core.egress import subprocess_env
+
+        base_env = {"PYTHONPATH": str(BLACKBIRD_DIR / "src")}
+        base_env.update({k: v for k, v in os.environ.items() if k not in base_env})
+        env = subprocess_env("blackbird", base_env)
 
         subprocess.run(
             [sys.executable, "blackbird.py", "--json", "-e", inp.email, "--no-update"],

@@ -51,13 +51,33 @@ def scan_target(
 
 
 @mcp.tool()
-def scan_status(scan_id: str) -> dict:
-    """Check a scan started by scan_target: status is running | done | error.
+def scan_batch(targets: list[dict[str, str]], max_concurrency: int = 3) -> dict:
+    """Start a batch of privacy-OSINT scans (SCALE.1). Returns immediately with
+    a batch_id.
 
-    When done, includes the headline result (risk, summary, top risks, report
-    paths) and which sources were skipped because no API token was configured.
+    Each target is a dict with keys email / phone / name / city / state /
+    zip_code (at least one of email/phone/name; name needs a city/state/zip).
+    Only one scan OR batch runs at a time — poll scan_status(batch_id) until it
+    reports "done" (aggregate: total / done / report paths per child), then read
+    each child with get_report(scan_id).
+    """
+    return jobs.start_batch(targets, max_concurrency)
+
+
+@mcp.tool()
+def scan_status(scan_id: str) -> dict:
+    """Check a scan or batch started by a scan_* tool: status is
+    running | done | error.
+
+    For a single target scan: when done, includes the headline result (risk,
+    summary, top risks, report paths) and which sources were skipped because no
+    API token was configured. For a batch id, aggregates child scans: total /
+    done / error counts plus each child's scan_id and report path when done.
     Then call get_report(scan_id).
     """
+    batch = jobs.get_batch(scan_id)
+    if batch is not None:
+        return _batch_status(batch)
     job = jobs.get_job(scan_id)
     if job is None:
         # Unknown to this process (e.g. the server restarted) — recover from disk.
@@ -79,6 +99,26 @@ def scan_status(scan_id: str) -> dict:
         out["skipped_sources"] = _skipped_sources(scan_id)
     elif job["status"] == "error":
         out["error"] = job["error"]
+    return out
+
+
+def _batch_status(batch: jobs.BatchJob) -> dict:
+    """Aggregate view of a batch job for scan_status (TASKING.2)."""
+    out: dict = {"batch_id": batch["batch_id"], "status": batch["status"]}
+    if batch["status"] == "running":
+        out["total"] = batch["total"]
+        out["done"] = 0
+        out["error"] = "still running"
+    elif batch["status"] == "error":
+        out["error"] = batch["error"]
+    elif batch["status"] == "done":
+        scans = batch["scan_ids"] or []
+        reports = batch["reports"] or []
+        out["total"] = batch["total"]
+        out["done"] = len(scans)
+        out["error"] = 0
+        out["scan_ids"] = scans
+        out["reports"] = reports
     return out
 
 
@@ -143,6 +183,43 @@ def reveal_credentials(scan_id: str) -> str:
     if not lines:
         return f"No leaked credentials on record for scan {scan_id}."
     return "\n".join(lines)
+
+
+@mcp.tool()
+def get_evidence(scan_id: str, source: str | None = None) -> dict:
+    """Return per-source provenance for a scan (EVIDENCE.3).
+
+    Operator/audit surface: for each ran source, the tool version, vendor host,
+    latency, the sha256 of the raw response (replayable), whether the request
+    egressed via a proxy, and the source's status/reason. Optional ``source``
+    filters to one source name. Never contains the target's harvested data —
+    provenance only.
+    """
+    from eidolon.core.state import ScanState
+
+    try:
+        state = ScanState.model_validate(repository.load_scan_state(scan_id))
+    except Exception as exc:
+        return {"scan_id": scan_id, "error": f"cannot load scan state: {exc}"}
+
+    rows = []
+    for name, sr in state.results.items():
+        if source and name != source:
+            continue
+        ev = sr.evidence
+        rows.append(
+            {
+                "source": name,
+                "status": sr.status,
+                "detail": sr.detail,
+                "tool_version": ev.tool_version if ev else "",
+                "source_host": ev.source_host if ev else "",
+                "latency_ms": ev.latency_ms if ev else 0,
+                "response_sha256": ev.response_sha256 if ev else "",
+                "egress_proxied": bool(ev.egress_proxied) if ev else False,
+            }
+        )
+    return {"scan_id": scan_id, "sources": rows}
 
 
 def _strip_dossier(md: str) -> str:

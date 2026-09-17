@@ -36,7 +36,7 @@ def _parse_json_tolerant(text: str) -> dict | list:
     if start >= 0 and end > start:
         text = text[start : end + 1]
     try:
-        return json.loads(text)
+        value = json.loads(text)
     except json.JSONDecodeError:
         # Try to fix common issues
         text = re.sub(r",\s*([}\]])", r"\1", text)  # trailing commas
@@ -44,10 +44,13 @@ def _parse_json_tolerant(text: str) -> dict | list:
             r"([{\[,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:", r'\1 "\2":', text
         )  # unquoted keys
         try:
-            return json.loads(text)
+            value = json.loads(text)
         except json.JSONDecodeError as e:
             logger.warning("JSON parse failed: %s", e)
             return {}
+    # A scalar JSON value (0, "x", null, true) is not an analysis document —
+    # forcing it into a dict here would crash the caller's .get() chains.
+    return value if isinstance(value, (dict, list)) else {}
 
 
 def _save_raw_response(state: ScanState, raw: str, exc: Exception) -> None:

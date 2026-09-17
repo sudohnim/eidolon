@@ -140,3 +140,20 @@ def enforce_pacing_for_run(tool_name: str) -> None:
     policy = get_active_policy()
     if policy:
         _enforce_pacing(tool_name, policy)
+
+
+def subprocess_env(tool_name: str, base_env: dict | None = None) -> dict:
+    """Env for a subprocess tool with proxy vars injected (OPSEC.4).
+
+    Subprocess tools (ghunt, blackbird) shell out — they bypass any Python-side
+    proxy. Inject ``HTTPS_PROXY`` / ``HTTP_PROXY`` / ``ALL_PROXY`` from the
+    active policy so the child's HTTP requests route through the same proxy the
+    in-process HTTP tools use. ``setdefault`` preserves an operator's explicit
+    env (the tool's own env wins over the process policy).
+    """
+    env = dict(base_env or os.environ)
+    policy = get_active_policy()
+    if policy and policy.proxy:
+        for var in ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY"):
+            env.setdefault(var, policy.proxy)
+    return env

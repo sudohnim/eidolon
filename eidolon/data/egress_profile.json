@@ -1,0 +1,19 @@
+{
+  "_comment": "Per-source egress exposure profile (OPSEC.5). Static operator reference: what each vendor sees when the tool runs. flags: logs_api_key = the vendor receives an API key/token identifying the operator; logs_source_ip = the vendor sees the operator's source IP; third_party = the request leaves the local machine to a third party. Consumed by the report's 'Evidence, Egress & Run Health' appendix. Sources absent here default to a conservative true/true/true.",
+  "hibp": {"logs_api_key": true, "logs_source_ip": true, "third_party": true},
+  "dehashed": {"logs_api_key": true, "logs_source_ip": true, "third_party": true},
+  "whoxy": {"logs_api_key": true, "logs_source_ip": true, "third_party": true},
+  "paste": {"logs_api_key": true, "logs_source_ip": true, "third_party": true},
+  "stealer": {"logs_api_key": true, "logs_source_ip": true, "third_party": true},
+  "spiderfoot": {"logs_api_key": false, "logs_source_ip": true, "third_party": true},
+  "holehe": {"logs_api_key": false, "logs_source_ip": true, "third_party": true},
+  "blackbird": {"logs_api_key": false, "logs_source_ip": true, "third_party": true},
+  "maigret": {"logs_api_key": false, "logs_source_ip": true, "third_party": true},
+  "ghunt": {"logs_api_key": false, "logs_source_ip": true, "third_party": true},
+  "broker_scan": {"logs_api_key": true, "logs_source_ip": true, "third_party": true},
+  "shodan": {"logs_api_key": true, "logs_source_ip": true, "third_party": true},
+  "phone_lookup": {"logs_api_key": true, "logs_source_ip": true, "third_party": true},
+  "public_records": {"logs_api_key": true, "logs_source_ip": true, "third_party": true},
+  "commoncrawl": {"logs_api_key": false, "logs_source_ip": true, "third_party": true},
+  "ai_audit": {"logs_api_key": false, "logs_source_ip": false, "third_party": false}
+}

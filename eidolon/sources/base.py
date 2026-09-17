@@ -187,6 +187,18 @@ def collect(tool: Tool[TIn, TOut], inp: TIn) -> SourceResult:
     policy = resolve_policy(tool.name)
     policy_token = bind_policy(policy)
 
+    # OPSEC.4: a policy that REQUIRES a proxy and has none means the tool cannot
+    # egress compliantly. Return an honest "skipped" — never run it in the clear
+    # and never let it read as a successful empty result.
+    if policy.require_proxy and not policy.proxy:
+        unbind_policy(policy_token)
+        return SourceResult(
+            name=tool.name,
+            status="skipped",
+            findings=[],
+            detail="egress policy requires a proxy; none configured — skipped",
+        )
+
     # OPSEC.2: enforce per-vendor pacing before the run
     enforce_pacing_for_run(tool.name)
 
@@ -243,4 +255,5 @@ def collect(tool: Tool[TIn, TOut], inp: TIn) -> SourceResult:
         findings=findings,
         detail=result.error,
         summary=summary,
+        evidence=provenance,
     )

@@ -3,6 +3,8 @@
 import os
 import time
 
+import pytest
+
 from eidolon.core.egress import (
     EgressPolicy,
     _parse_pacing,
@@ -255,3 +257,244 @@ class TestPolicyEquality:
         p1 = resolve_policy("hibp")
         p2 = resolve_policy("shodan")
         assert p1.proxy != p2.proxy
+
+
+class TestHttpClientHonorsPolicy:
+    """OPSEC.3 — every HTTP tool builds its client through the shared helper,
+    which reads the ContextVar policy (proxy + UA + trust_env=False)."""
+
+    def _setenv(self, monkeypatch):
+        for k in list(os.environ.keys()):
+            if k.startswith("EIDOLON_"):
+                monkeypatch.delenv(k, raising=False)
+
+    @pytest.fixture
+    def _record_httpx(self, monkeypatch):
+        """Stub httpx.Client with a recorder so tests can assert constructor args
+        (httpx 0.27 doesn't expose the resolved proxy as a public attribute)."""
+        calls = []
+
+        class _FakeClient:
+            def __init__(self, **kwargs):
+                calls.append(kwargs)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return None
+
+        import eidolon.sources._http as http_mod
+
+        monkeypatch.setattr(http_mod, "httpx", _Stub(calls))
+        return calls
+
+    def test_client_uses_contextvar_proxy(self, monkeypatch, _record_httpx):
+        from eidolon.core.egress import bind_policy, unbind_policy
+        from eidolon.sources._http import client
+
+        self._setenv(monkeypatch)
+        token = bind_policy(
+            EgressPolicy(proxy="http://socks5-host:1080", user_agent="ua/1")
+        )
+        try:
+            client()
+        finally:
+            unbind_policy(token)
+        kwargs = _record_httpx[0]
+        assert kwargs.get("proxy") == "http://socks5-host:1080"
+        assert kwargs.get("headers") == {"User-Agent": "ua/1"}
+        assert kwargs.get("trust_env") is False  # ambient env can't redirect
+
+    def test_client_direct_when_no_active_policy(self, monkeypatch, _record_httpx):
+        from eidolon.sources._http import client
+
+        self._setenv(monkeypatch)
+        client()
+        kwargs = _record_httpx[0]
+        assert kwargs.get("proxy") is None
+        assert kwargs.get("trust_env") is False
+
+    def test_explicit_policy_overrides_context(self, monkeypatch, _record_httpx):
+        from eidolon.core.egress import bind_policy, unbind_policy
+        from eidolon.sources._http import client
+
+        self._setenv(monkeypatch)
+        token = bind_policy(EgressPolicy(proxy="http://ctx:8080"))
+        try:
+            client(policy=EgressPolicy(proxy="http://explicit:8080"))
+        finally:
+            unbind_policy(token)
+        assert _record_httpx[0]["proxy"] == "http://explicit:8080"
+
+    def test_http_tools_import_the_shared_client_not_bare_httpx(self):
+        """Locks the boundary: HTTP tools route through `_http.client`, and the
+        async ones through `_http.async_client` — never a bare httpx client."""
+        from pathlib import Path
+
+        from eidolon import sources as sources_pkg
+
+        banned = ("httpx.Client(", "httpx.AsyncClient(")
+        http_tools = [
+            "hibp.py",
+            "dehashed.py",
+            "whoxy.py",
+            "shodan.py",
+            "numverify.py",
+            "courtlistener.py",
+            "opencorporates.py",
+            "spiderfoot.py",
+            "stealer.py",
+            "paste.py",
+            "commoncrawl.py",
+            "fastpeoplesearch.py",
+            "truepeoplesearch.py",
+            "holehe.py",
+        ]
+        for name in http_tools:
+            src = (Path(sources_pkg.__file__).resolve().parent / name).read_text()
+            assert (
+                "from eidolon.sources._http import" in src
+            ), f"{name} does not use the shared _http client"
+            for banned_frag in banned:
+                assert (
+                    banned_frag not in src
+                ), f"{name} constructs a bare httpx client ({banned_frag})"
+
+    def test_default_timeout_is_bounded(self, monkeypatch, _record_httpx):
+        """RESILIENCE.3 — the shared client default can't hang past a read cap."""
+        from eidolon.sources._http import client
+
+        self._setenv(monkeypatch)
+        client()
+        kwargs = _record_httpx[0]
+        timeout = kwargs["timeout"]
+        assert timeout.connect < 10
+        assert timeout.read <= 60
+        assert timeout.pool < 20
+
+
+class _Stub:
+    """Minimal httpx-module stand-in exposing Client + AsyncClient (both route
+    to the shared recorder) and Timeout (real) for the _http helper."""
+
+    Timeout = pytest.importorskip("httpx").Timeout
+
+    def __init__(self, calls):
+        self._calls = calls
+
+    def Client(self, **kwargs):
+        return _FakeClient(kwargs, self._calls)
+
+    def AsyncClient(self, **kwargs):
+        return _FakeClient(kwargs, self._calls)
+
+
+class _FakeClient:
+    def __init__(self, kwargs, calls):
+        calls.append(kwargs)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return None
+
+
+class TestCollectBoundaryPacing:
+    """OPSEC.2 — pacing is enforced at the collect boundary, so back-to-back
+    runs of one tool respect min_interval_s, and zero pacing adds no latency."""
+
+    def _clear(self):
+        from eidolon.core import egress
+
+        egress._last_call_ts.clear()
+
+    def test_pacing_enforced_at_collect_boundary(self, monkeypatch):
+        monkeypatch.setenv("EIDOLON_PACING_HIBP", "0.2,0.0")
+        monkeypatch.delenv("HIBP_API_KEY", raising=False)
+
+        from eidolon.sources.base import collect
+        from eidolon.sources.hibp import Hibp, HibpInput
+
+        self._clear()
+        t0 = time.monotonic()
+        collect(Hibp(), HibpInput(input_type="email", value="a@b.com"))
+        collect(Hibp(), HibpInput(input_type="email", value="a@b.com"))
+        elapsed = time.monotonic() - t0
+        self._clear()
+        # the second collect paces itself: at least the 0.2s minimum interval
+        assert elapsed >= 0.16, f"pacing not enforced at boundary: {elapsed:.3f}s"
+
+    def test_zero_pacing_adds_no_latency(self, monkeypatch):
+        for k in list(os.environ.keys()):
+            if k.startswith("EIDOLON_PACING"):
+                monkeypatch.delenv(k, raising=False)
+        monkeypatch.delenv("HIBP_API_KEY", raising=False)
+
+        from eidolon.sources.base import collect
+        from eidolon.sources.hibp import Hibp, HibpInput
+
+        self._clear()
+        t0 = time.monotonic()
+        collect(Hibp(), HibpInput(input_type="email", value="a@b.com"))
+        collect(Hibp(), HibpInput(input_type="email", value="a@b.com"))
+        elapsed = time.monotonic() - t0
+        self._clear()
+        assert elapsed < 0.5, f"zero pacing still added latency: {elapsed:.3f}s"
+
+
+class TestSubprocessEgress:
+    """OPSEC.4 — subprocess tools inherit the policy proxy/env and a
+    require_proxy-without-proxy policy skips them without spawning."""
+
+    def test_subprocess_env_injects_proxy(self, monkeypatch):
+        from eidolon.core.egress import bind_policy, subprocess_env, unbind_policy
+
+        monkeypatch.delenv("HTTPS_PROXY", raising=False)
+        token = bind_policy(EgressPolicy(proxy="http://proxy:8080"))
+        try:
+            env = subprocess_env("ghunt", {"PATH": "/bin"})
+            assert env["HTTPS_PROXY"] == "http://proxy:8080"
+            assert env["HTTP_PROXY"] == "http://proxy:8080"
+            assert env["ALL_PROXY"] == "http://proxy:8080"
+            assert env["PATH"] == "/bin"  # base env preserved
+        finally:
+            unbind_policy(token)
+
+    def test_subprocess_env_without_policy_is_clean(self, monkeypatch):
+        from eidolon.core.egress import subprocess_env
+
+        monkeypatch.delenv("EIDOLON_PROXY", raising=False)
+        monkeypatch.delenv("HTTPS_PROXY", raising=False)
+        env = subprocess_env("ghunt", {"PATH": "/bin"})
+        assert "HTTPS_PROXY" not in env
+
+    def test_require_proxy_without_proxy_skips(self, monkeypatch):
+        """Boundary returns 'skipped' — never egresses in the clear, and never
+        masquerades as a successful empty run."""
+        monkeypatch.setenv("EIDOLON_REQUIRE_PROXY", "true")
+        monkeypatch.delenv("EIDOLON_PROXY", raising=False)
+
+        from eidolon.sources.base import collect
+        from eidolon.sources.ghunt import Ghunt, GHuntInput
+
+        monkeypatch.setattr("subprocess.run", _boom)  # must not be called
+        sr = collect(Ghunt(), GHuntInput(email="a@b.com"))
+        assert sr.status == "skipped"
+        assert "requires a proxy" in (sr.detail or "").lower()
+        assert sr.findings == []
+
+    def test_require_proxy_with_proxy_allows(self, monkeypatch):
+        monkeypatch.setenv("EIDOLON_REQUIRE_PROXY", "true")
+        monkeypatch.setenv("EIDOLON_PROXY", "http://proxy:8080")
+
+        from eidolon.sources.base import collect
+        from eidolon.sources.hibp import Hibp, HibpInput
+
+        sr = collect(Hibp(), HibpInput(input_type="email", value="a@b.com"))
+        assert sr.status == "ok"
+
+
+def _boom(*args, **kwargs):  # pragma: no cover - sentinel that must never fire
+    raise AssertionError("subprocess ran despite require_proxy without a proxy")

@@ -226,3 +226,67 @@ class TestModelBehaviour:
         b = build_report_model(scan_state)
         assert a.section_titles() == b.section_titles()
         assert render_markdown(a) == render_markdown(b)
+
+
+class TestEvidenceAppendix:
+    """EVIDENCE.2 / OPSEC.5 / RESILIENCE.4: the report appendix carries
+    per-source provenance (replayable sha256), egress exposure, and a
+    run-health rollup — and removes the hashes of sources that were skipped."""
+
+    def test_appendix_present_in_report(self, scan_state):
+        model = build_report_model(scan_state)
+        assert model.appendix is not None
+        assert model.appendix.evidence
+        assert "Evidence, Egress & Run Health" in model.section_titles()
+        md = render_markdown(model)
+        assert "## Evidence, Egress & Run Health" in md
+        assert "### Evidence" in md
+        assert "### Egress Exposure" in md
+        assert "### Run Health" in md
+
+    def test_ran_sources_have_replay_hash_skipped_do_not(self, scan_state):
+        model = build_report_model(scan_state)
+        assert model.appendix is not None
+        ran = [r for r in model.appendix.evidence if r.response_sha256]
+        assert ran, "expected at least one ran source with a replay hash"
+        for row in ran:
+            assert len(row.response_sha256) == 64
+            assert row.latency_ms >= 0
+            assert row.tool_version
+        # single-host tools expose the vendor host; aggregators (holehe,
+        # maigret, broker_scan, ...) resolve many hosts and legitimately emit ""
+        assert any(row.source_host for row in ran), "no vendor host recorded"
+        egress_by_source = {e.source for e in model.appendix.egress}
+        assert {
+            r.source for r in ran
+        } <= egress_by_source, "every ran source has an egress row"
+
+    def test_run_health_rolls_up_statuses(self, scan_state):
+        model = build_report_model(scan_state)
+        assert model.appendix is not None
+        assert model.appendix.run_health is not None
+        h = model.appendix.run_health
+        expected = {"ok": 0, "skipped": 0, "error": 0}
+        for sr in scan_state.results.values():
+            expected[sr.status] = expected.get(sr.status, 0) + 1
+        assert h.ok == expected["ok"]
+        assert h.skipped == expected["skipped"]
+        assert h.error == expected["error"]
+        assert h.wall_time_ms >= 0
+
+    def test_skipped_only_state_still_produces_health_rollup(self):
+        state = PipelineState(
+            raw_input=RAW_INPUT,
+            results={
+                "hibp": SourceResult(
+                    name="hibp",
+                    status="skipped",
+                    findings=[],
+                    detail="not checked — set HIBP_API_KEY",
+                )
+            },
+        )
+        model = build_report_model(state)
+        assert model.appendix is None  # nothing ran: no evidence appendix
+        md = render_markdown(model)
+        assert "## Evidence, Egress & Run Health" not in md

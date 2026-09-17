@@ -29,6 +29,7 @@ OPTIONAL_VARS_WITH_DEFAULTS = {
     "OLLAMA_HOST": "http://localhost:11434",  # local LLM; narrative skipped if down
     "SPIDERFOOT_HOST": "http://localhost:5001",  # footprinting; skipped if down
     "SPIDERFOOT_TIMEOUT": "600",  # seconds to wait for SpiderFoot scan
+    "PER_TOOL_TIMEOUT_S": "120",  # soft per-tool cap in the wave runner (RESILIENCE.1)
     "HIBP_API_KEY": "",  # haveibeenpwned.com/API/Key (paid)
     "APIFY_API_TOKEN": "",  # apify.com — broker scanning
     "APIFY_ACTOR_ID": "",  # the Apify actor used for broker lookups

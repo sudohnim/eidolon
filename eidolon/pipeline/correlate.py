@@ -50,19 +50,15 @@ def _extract_deterministic_pivots(state: ScanState) -> list[dict]:
     for f in state.generic_findings("exposed_host"):
         p = f.payload
         ip = p.get("ip")
-        if ip:
-            try:
-                ipaddress.ip_address(ip)
-                pivots.append(
-                    {
-                        "type": "ip",
-                        "value": ip,
-                        "source": f.kind,
-                        "reason": "IP address found in Shodan scan",
-                    }
-                )
-            except ValueError:
-                pass
+        if ip and _valid_pivot_value("ip", str(ip)):
+            pivots.append(
+                {
+                    "type": "ip",
+                    "value": str(ip),
+                    "source": f.kind,
+                    "reason": "IP address found in Shodan scan",
+                }
+            )
 
     for f in state.generic_findings("broker_exposure"):
         p = f.payload
@@ -145,15 +141,22 @@ def correlation_planner_node(state: ScanState) -> ScanState:
 
 
 def _valid_pivot_value(ptype: str, pvalue: str) -> bool:
-    """Validate a pivot value by type."""
+    """Validate a pivot value by type.
+
+    HARDEN.2 — a pivot must be a *real* attackable value, not private
+    infrastructure or a placeholder phone.
+    """
     if not pvalue:
         return False
     if ptype == "ip":
         try:
-            ipaddress.ip_address(pvalue)
-            return True
+            ip = ipaddress.ip_address(pvalue)
         except ValueError:
             return False
+        # only globally routable addresses are worth pivoting on; RFC1918,
+        # loopback, link-local, multicast, documentation + unspecified all slip
+        # through ipaddress's validity check but are noise or the wrong target
+        return bool(ip.is_global)
     if ptype == "email":
         return "@" in pvalue and "." in pvalue.split("@")[-1]
     if ptype in ("username", "name"):
@@ -161,7 +164,16 @@ def _valid_pivot_value(ptype: str, pvalue: str) -> bool:
     if ptype == "phone":
         # Require at least 7 digits (like the normalize_phone function)
         digits = re.sub(r"\D", "", pvalue)
-        return len(digits) >= 7
+        if len(digits) < 7:
+            return False
+        if len(set(digits)) == 1:
+            return False  # 0000000, 1111111 — placeholder
+        # sequential runs like 0123456 / 9876543 — placeholder
+        fwd = "01234567890123456789"
+        rev = "98765432109876543210"
+        if digits in fwd or digits in rev:
+            return False
+        return True
     return False
 
 

@@ -2,7 +2,7 @@ import argparse
 import sys
 
 from eidolon import config
-from eidolon.core import runner
+from eidolon.core import batch, runner
 from eidolon.core.logging import configure_logging, get_logger
 
 configure_logging()
@@ -31,6 +31,16 @@ _validate_city = _argtype(runner.normalize_city)
 _validate_zip = _argtype(runner.normalize_zip)
 
 
+def _validate_concurrency(value: str) -> int:
+    try:
+        n = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("--max-concurrency must be an integer")
+    if n < 1:
+        raise argparse.ArgumentTypeError("--max-concurrency must be >= 1")
+    return n
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 
@@ -47,6 +57,13 @@ Examples:
   python main.py --name "John Smith" --city "San Francisco" --state CA
   python main.py --email target@example.com --name "John Smith" \
                  --state NY --phone +14155550100
+  python main.py --targets-file targets.txt --max-concurrency 3
+
+targets.txt format: one target per line, "key:value" tokens separated by ';'
+(values may contain spaces). Unknown keys are dropped with a warning.
+  email:target@example.com
+  name:John Smith;state:CA
+  phone:+14155550100;name:Jane Doe
 """,
     )
     p.add_argument(
@@ -76,7 +93,70 @@ Examples:
         type=_validate_zip,
         help="Target zip code (used with --name for broker search)",
     )
+    p.add_argument(
+        "--targets-file",
+        metavar="FILE",
+        help="Path to a targets file (one target per line, see epilog) for batch scans",
+    )
+    p.add_argument(
+        "--max-concurrency",
+        metavar="N",
+        type=_validate_concurrency,
+        default=3,
+        help="Concurrent scans when running --targets-file (default: 3)",
+    )
     return p
+
+
+def _run_batch(args: argparse.Namespace) -> None:
+    """--targets-file path: parse + scan every target concurrently."""
+    try:
+        with open(args.targets_file, "r", encoding="utf-8") as fh:
+            lines = fh.readlines()
+    except OSError as e:
+        logger.error("cannot read targets file %s: %s", args.targets_file, e)
+        sys.exit(1)
+
+    targets: list[dict[str, str]] = []
+    target_lines: list[int] = []
+    for lineno, line in enumerate(lines, start=1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        target = batch.parse_target_line(line)
+        if not target:
+            logger.warning("targets-file line %d: no valid keys, skipped", lineno)
+            continue
+        targets.append(target)
+        target_lines.append(lineno)
+
+    if not targets:
+        logger.error("targets file %s contained no valid targets", args.targets_file)
+        sys.exit(1)
+
+    # per-line fields must already satisfy the name/location rule per target
+    for lineno, target in zip(target_lines, targets):
+        if "name" in target and not any(
+            k in target for k in ("city", "state", "zip_code")
+        ):
+            logger.error(
+                "targets-file line %d: --name target needs at least one of "
+                "city/state/zip",
+                lineno,
+            )
+            sys.exit(1)
+
+    logger.info(
+        "Batch scan: %d targets, max_concurrency=%d", len(targets), args.max_concurrency
+    )
+    states = batch.run_batch(targets, args.max_concurrency)
+    for state in states:
+        logger.info(
+            "  complete scan_id=%s target=%r findings=%d",
+            state.run_id,
+            state.raw_input,
+            len(state.findings),
+        )
 
 
 def main():
@@ -84,6 +164,25 @@ def main():
 
     parser = _build_parser()
     args = parser.parse_args()
+
+    if args.targets_file:
+        input_flags = [
+            args.email,
+            args.phone,
+            args.name,
+            args.city,
+            args.state,
+            args.zip,
+        ]
+        if any(input_flags):
+            parser.print_help()
+            print(
+                "\nError: --targets-file cannot be combined with "
+                "single-target flags (--email/--phone/--name/--city/--state/--zip)."
+            )
+            sys.exit(1)
+        _run_batch(args)
+        return
 
     if not any([args.email, args.phone, args.name]):
         parser.print_help()

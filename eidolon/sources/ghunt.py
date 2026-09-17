@@ -67,11 +67,16 @@ class Ghunt(Tool[GHuntInput, GHuntOutput]):
 
         # ghunt has no __main__, must be called via its installed CLI entrypoint
         ghunt_bin = Path(sys.executable).parent / "ghunt"
+        # OPSEC.4: pass the active policy's proxy through the child env so this
+        # subprocess doesn't egress in the clear while HTTP tools are proxied.
+        from eidolon.core.egress import subprocess_env
+
         result = subprocess.run(
             [str(ghunt_bin), "email", "--json", out_path, inp.email],
             capture_output=True,
             text=True,
             timeout=60,
+            env=subprocess_env("ghunt"),
         )
 
         raw: dict = {}

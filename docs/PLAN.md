@@ -9,7 +9,7 @@ The verify gate for every task is:
 ./bin/lint.sh && TEST_MODE=true uv run pytest -x -q
 ```
 
-Called "verify" below. Currently 177 tests; new tasks add tests, so the number only rises.
+Called "verify" below. Currently 357 tests; new tasks add tests, so the number only rises.
 
 ## 0. Decision principle (read first)
 
@@ -209,7 +209,7 @@ REGISTRY: tuple[SourceSpec,...] = (SourceSpec("hibp",Hibp,1,("email",)), ...)  #
   one `to_findings`, provably (decoupling gate); wave hand-wiring gone.
   Done when: state + graph are registry-driven; 17 fields removed.
 
-- [ ] **REFACTOR.6 [AGENT] God modules remain.** After 1–5, `nodes.py` (2248) and
+- [x] **REFACTOR.6 [AGENT] God modules remain.** After 1–5, `nodes.py` (2248) and
   `report.py` (1452) still hold orchestration+LLM+analysis+two renderers. Split into the
   target layout (`pipeline/`, `analysis/risk.py`+`narrative.py`, `report/`); remove the
   legacy renderer. Verify: no module > ~400 LOC; `nodes.py` and monolithic `report.py`
@@ -234,7 +234,7 @@ the one place to add it once for all vendors.
   honest guarantee is "no tool egresses except through the configured policy," at one seam.
 - No new crypto, no telemetry. Config from `.env`/`config.py` only.
 
-- [ ] **OPSEC.1 [AGENT] No egress policy object.** Nothing describes how a tool reaches the
+- [x] **OPSEC.1 [AGENT] No egress policy object.** Nothing describes how a tool reaches the
   network. Add `eidolon/core/egress.py`: frozen `EgressPolicy` (`proxy:str|None`,
   `min_interval_s:float=0`, `jitter_s:float=0`, `user_agent:str`, `dns_via_proxy:bool=False`,
   `require_proxy:bool=False`) + `resolve_policy(tool_name)` overlaying per-tool env
@@ -243,7 +243,7 @@ the one place to add it once for all vendors.
   `EIDOLON_PROXY_SHODAN` over the global; env parsing tested.
   Done when: module + tests land; nothing wired (OPSEC.2/3 wire it).
 
-- [ ] **OPSEC.2 [AGENT] Collect boundary sets no egress.** The collect/`run_to_result`
+- [x] **OPSEC.2 [AGENT] Collect boundary sets no egress.** The collect/`run_to_result`
   boundary runs tools with zero network governance. Fix: resolve the policy for the source,
   bind it to the ContextVar for the run, and enforce per-vendor pacing (`min_interval_s` +
   random `jitter_s`) via a process-wide per-vendor last-call map under a lock; record
@@ -252,7 +252,7 @@ the one place to add it once for all vendors.
   (TEST_MODE stays fast).
   Done when: pacing enforced at the boundary; TEST_MODE runtime unchanged.
 
-- [ ] **OPSEC.3 [AGENT] HTTP tools ignore the proxy.** `hibp/dehashed/whoxy/shodan/numverify/
+- [x] **OPSEC.3 [AGENT] HTTP tools ignore the proxy.** `hibp/dehashed/whoxy/shodan/numverify/
   courtlistener/opencorporates/spiderfoot` build clients with no `proxy=`. Add
   `eidolon/tools/_http.py` `client(policy)` returning a configured `httpx.Client` (proxy,
   UA, `trust_env=False` so ambient env can't silently redirect egress) and route every HTTP
@@ -261,7 +261,7 @@ the one place to add it once for all vendors.
   pass with policy unset (direct).
   Done when: no HTTP tool builds a bare client; proxy honored end-to-end in test.
 
-- [ ] **OPSEC.4 [AGENT] Subprocess tools leak host IP.** `eidolon/tools/ghunt.py` +
+- [x] **OPSEC.4 [AGENT] Subprocess tools leak host IP.** `eidolon/tools/ghunt.py` +
   `blackbird.py` shell out, bypassing any Python proxy. Pass proxy env (`HTTPS_PROXY`/
   `ALL_PROXY`) into subprocess `env=`; when `require_proxy` is set and a tool can't comply,
   the boundary returns `status="skipped"` ("egress policy requires proxy; tool cannot
@@ -269,7 +269,7 @@ the one place to add it once for all vendors.
   tool is `skipped`, not `ok`/`error`, and no subprocess spawns.
   Done when: no subprocess egresses in the clear under `require_proxy`; skip path tested.
 
-- [ ] **OPSEC.5 [AGENT] No burn/exposure profile in report.** The report never says which
+- [x] **OPSEC.5 [AGENT] No burn/exposure profile in report.** The report never says which
   vendors saw the API key or source IP. Add static `eidolon/data/egress_profile.json` (per
   tool: `logs_api_key`, `logs_source_ip`, `third_party`) + an "Egress exposure" report
   footer listing, per ran tool, what it exposed and whether a proxy was in effect. Data
@@ -284,7 +284,7 @@ the one place to add it once for all vendors.
 The evidence fields live on `Provenance` (defined in REFACTOR's Finding domain). This phase
 **stamps and surfaces** them; it no longer defines a competing `Provenance` on `ToolResult`.
 
-- [ ] **EVIDENCE.1 [AGENT] collect() doesn't stamp the evidence fields.** REFACTOR.2 adds
+- [x] **EVIDENCE.1 [AGENT] collect() doesn't stamp the evidence fields.** REFACTOR.2 adds
   `Provenance` but may leave the evidence fields empty. Fix: in `collect()`, capture
   `latency_ms` around the tool run, set `response_sha256 = sha256(out.model_dump_json())`,
   `tool_version = eidolon.__version__` (else ""), `source_host` from a `vendor: ClassVar`
@@ -293,7 +293,7 @@ The evidence fields live on `Provenance` (defined in REFACTOR's Finding domain).
   output hashes twice (determinism).
   Done when: every finding's provenance carries stable evidence fields.
 
-- [ ] **EVIDENCE.2 [AGENT] Report has no evidence appendix.** `eidolon/report/` (post-
+- [x] **EVIDENCE.2 [AGENT] Report has no evidence appendix.** `eidolon/report/` (post-
   REFACTOR) renders findings but no per-source evidence. Add an "Evidence" appendix listing,
   per ran source, `tool_version · source_host · latency · sha256 · proxied?` from
   `Provenance`. Appendix only (operator reference), not narrative; omit skipped sources'
@@ -301,7 +301,7 @@ The evidence fields live on `Provenance` (defined in REFACTOR's Finding domain).
   omits skipped ones.
   Done when: report includes a replayable evidence appendix bound to real findings.
 
-- [ ] **EVIDENCE.3 [AGENT] Provenance not queryable over MCP.** The evidence appendix lives
+- [x] **EVIDENCE.3 [AGENT] Provenance not queryable over MCP.** The evidence appendix lives
   only in the file report. Add a `get_evidence(scan_id)` MCP tool returning structured
   provenance rows (source, source_host, sha256, latency, proxied) as JSON so a caller
   verifies a claim without parsing markdown. Verify: TEST_MODE MCP test pulls evidence for a
@@ -318,7 +318,7 @@ leaves *no* result in state (silent hole, not a visible failure). (Pre-REFACTOR 
 below; post-REFACTOR the equivalent lives in `pipeline/collect.py` + the registry runner —
 apply to whichever exists when the task runs.)
 
-- [ ] **RESILIENCE.1 [AGENT] Wave runner has no per-tool timeout.**
+- [x] **RESILIENCE.1 [AGENT] Wave runner has no per-tool timeout.**
   `eidolon/agent/nodes.py:1092-1115` `_run_concurrent` iterates `as_completed(futures)` with
   no timeout, so one wedged tool stalls the whole wave (a hung subprocess has no cap). Add
   `per_tool_timeout_s` (config default ~120) and `as_completed(futures, timeout=...)`; on
@@ -329,14 +329,14 @@ apply to whichever exists when the task runs.)
   within timeout, slow tool's slot holds an error/timeout result.
   Done when: a slow tool no longer blocks the wave; its slot shows a visible error.
 
-- [ ] **RESILIENCE.2 [AGENT] A raised tool leaves no result.** `nodes.py:1112`
+- [x] **RESILIENCE.2 [AGENT] A raised tool leaves no result.** `nodes.py:1112`
   `except Exception` logs and continues but writes nothing, so a crashed tool looks like
   "never ran." Map each node fn → its slot and write an error result on exception (guards
   the rare node-level raise since `run_to_result` already never raises). Verify: a fake node
   that raises leaves an error result in its slot; digest/report render it failed, not absent.
   Done when: every wave tool ends with a result — ok, skipped, or error.
 
-- [ ] **RESILIENCE.3 [AGENT] HTTP tools have no explicit timeout.** HTTP tools build clients
+- [x] **RESILIENCE.3 [AGENT] HTTP tools have no explicit timeout.** HTTP tools build clients
   with no `timeout=`, so a black-holed vendor hangs to the OS TCP timeout. Set
   `httpx.Timeout(connect=5, read=<tool-appropriate>)` in the shared `_http.client()`
   (OPSEC.3); each tool passes its read cap. This is the hard cap behind RESILIENCE.1's soft
@@ -344,7 +344,7 @@ apply to whichever exists when the task runs.)
   tool (surfaced as `status="error"`), not an indefinite hang.
   Done when: no HTTP tool can hang past its configured read timeout.
 
-- [ ] **RESILIENCE.4 [AGENT] Run health isn't surfaced.** No at-a-glance "what ran/skipped/
+- [x] **RESILIENCE.4 [AGENT] Run health isn't surfaced.** No at-a-glance "what ran/skipped/
   errored/timed out." Add a report footer "Run health" counting sources by status (from
   `coverage()` post-REFACTOR) + total wall time (earliest→latest provenance timestamp).
   Data only. Verify: report test with a mixed set (ok+skipped+error) asserts counts render.
@@ -357,7 +357,7 @@ apply to whichever exists when the task runs.)
 The pitch is 100X; the pipeline is single-identity (`raw_input` is one string, graph runs
 once). Show bounded concurrent multi-target execution without changing the per-target path.
 
-- [ ] **SCALE.1 [AGENT] No batch entrypoint.** `eidolon/main.py` runs one target per
+- [x] **SCALE.1 [AGENT] No batch entrypoint.** `eidolon/main.py` runs one target per
   invocation. Add `eidolon/core/batch.py` `run_batch(targets, max_concurrency) ->
   list[ScanState]` running the compiled graph per target under a bounded pool (pick the
   simpler robust option per §0 and justify in the docstring). Each target: own `run_id`, own
@@ -365,13 +365,13 @@ once). Show bounded concurrent multi-target execution without changing the per-t
   `max_concurrency=2` → 3 independent states, 3 distinct `run_id`s, 3 report paths.
   Done when: N targets scan concurrently under a cap; per-target isolation proven.
 
-- [ ] **SCALE.2 [AGENT] No CLI batch surface.** Add `--targets-file PATH` (one per line,
+- [x] **SCALE.2 [AGENT] No CLI batch surface.** Add `--targets-file PATH` (one per line,
   `#` comments skipped) + `--max-concurrency N` (default 3) to `eidolon/main.py`; dispatch
   to `run_batch`. Single-target flags unchanged. Verify: CLI test with a 2-line file in
   TEST_MODE → 2 reports; single-target CLI tests pass.
   Done when: `--targets-file` drives a bounded batch; single-target path untouched.
 
-- [ ] **SCALE.3 [AGENT] Global rate limits ignored across concurrent targets.** Two targets
+- [x] **SCALE.3 [AGENT] Global rate limits ignored across concurrent targets.** Two targets
   can hammer one vendor at once, blowing quotas + raising attribution signal. Make OPSEC.2's
   per-vendor pacing map process-global (keyed by tool name, module-level lock) and note in
   `batch.py` that pacing is shared. Verify: 2 concurrent targets + a paced fake tool — total
@@ -386,14 +386,14 @@ OSINT results are attacker-controllable (poisoned profiles, booby JSON, values d
 steer a pivot). The instincts exist (`_is_real_value`, `_parse_json_tolerant`, placeholder
 filters) — make them a *proven* contract. `hypothesis` is not yet a dependency.
 
-- [ ] **HARDEN.1 [AGENT] `_parse_json_tolerant` isn't fuzzed.** `eidolon/agent/nodes.py:35`
+- [x] **HARDEN.1 [AGENT] `_parse_json_tolerant` isn't fuzzed.** `eidolon/agent/nodes.py:35`
   repairs model output and feeds the pipeline. Add `hypothesis` to dev deps
   (`pyproject.toml`) + a property test asserting it **never raises and never hangs** on
   arbitrary text — returns a dict/list or a defined empty/fallback. Verify: hypothesis test
   over random unicode + JSON-ish strings passes; return-type-on-garbage contract asserted.
   Done when: parser proven total (no raise/hang) over fuzzed input.
 
-- [ ] **HARDEN.2 [AGENT] `_is_real_value` pivot filter isn't property-tested.**
+- [x] **HARDEN.2 [AGENT] `_is_real_value` pivot filter isn't property-tested.**
   `eidolon/agent/nodes.py:1293` rejects fake phones/private IPs/placeholder names, ad-hoc
   cases only. Add hypothesis strategies (phones; IPv4 incl. RFC1918/loopback/link-local;
   names); assert every private/reserved IP and sequential/all-same phone is rejected and no
@@ -402,7 +402,7 @@ filters) — make them a *proven* contract. `hypothesis` is not yet a dependency
   regression case for any gap found.
   Done when: pivot validator proven never to admit a reserved IP or placeholder.
 
-- [ ] **HARDEN.3 [AGENT] LLM narrative can inject unvetted strings into the report.** Report
+- [x] **HARDEN.3 [AGENT] LLM narrative can inject unvetted strings into the report.** Report
   rendering shouldn't trust field contents blindly. Assert (test) the renderer escapes/
   neutralizes control chars / markdown-breaking sequences in findings' titles + `top_risks`
   so a poisoned string (`"](http://evil)"`, CRLF, null) can't forge report structure; if the
@@ -419,14 +419,14 @@ Operators think in tasking, not CLI flags. `eidolon/mcp/server.py` (163 LOC) is 
 interface (published to the registry) but thinly tested. Exposes `scan_target/scan_status/
 list_scans/get_report/reveal_credentials`.
 
-- [ ] **TASKING.1 [AGENT] MCP tools lack a schema contract test.** `tests/test_mcp.py`
+- [x] **TASKING.1 [AGENT] MCP tools lack a schema contract test.** `tests/test_mcp.py`
   (~2.6KB) doesn't pin tool input/output shapes users depend on. Add contract tests
   asserting each MCP tool's declared schema (arg names/types) + that `scan_status`/
   `get_report` return the documented 3-state shape (running/done/error) for a known scan id
   in TEST_MODE. Verify: contract test passes; a shape change breaks it loudly.
   Done when: MCP tool surface is pinned by a contract test.
 
-- [ ] **TASKING.2 [AGENT] Batch tasking isn't exposed over MCP.** Once SCALE.1 lands, add a
+- [x] **TASKING.2 [AGENT] Batch tasking isn't exposed over MCP.** Once SCALE.1 lands, add a
   `scan_batch(targets, max_concurrency=3)` MCP tool enqueuing via the same async job path
   `scan_target` uses, returning one batch id whose `scan_status` aggregates child states.
   Do NOT block the MCP call on completion. Verify: TEST_MODE MCP test submits 2 targets,

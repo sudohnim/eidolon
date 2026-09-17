@@ -85,8 +85,13 @@ async def _run_async(email: str) -> list[dict]:
     modules = import_submodules(holehe.modules)
     functions = get_functions(modules)
 
+    # OPSEC.3: build the client through the shared egress-aware helper so the
+    # active policy (proxy, UA, timeouts, trust_env=False) applies to every one
+    # of the ~121 platform probes instead of a bare client.
+    from eidolon.sources._http import async_client
+
     out: list[dict] = []
-    async with httpx.AsyncClient() as client:
+    async with async_client() as client:
         async with trio.open_nursery() as nursery:
             for func in functions:
                 nursery.start_soon(_check_one, func, email, client, out)
