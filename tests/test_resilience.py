@@ -179,6 +179,10 @@ class TestHttpToolTimeout:
             Timeout = real_httpx.Timeout
             Client = _FakeClient  # type: ignore[assignment]
             AsyncClient = _FakeClient  # type: ignore[assignment]
+            # client() builds a (real) transport before handing it to Client;
+            # the stub Client ignores it and raises on .get().
+            HTTPTransport = real_httpx.HTTPTransport
+            AsyncHTTPTransport = real_httpx.AsyncHTTPTransport
 
         monkeypatch.setattr(http_mod, "httpx", _Stub())
 

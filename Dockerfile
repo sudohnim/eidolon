@@ -27,8 +27,14 @@ RUN uv sync --no-dev
 # Install Playwright browser (Chromium already bundled in base image, this registers it)
 RUN uv run playwright install chromium
 
-# Clone Blackbird (not on PyPI — baked into image)
-RUN git clone --depth 1 https://github.com/p1ngul1n0/blackbird /opt/blackbird
+# Clone Blackbird (not on PyPI — baked into image).
+# Pinned to a specific commit for reproducible + supply-chain-auditable builds:
+# an unpinned `--depth 1` clone tracks a moving HEAD. Bump BLACKBIRD_REF
+# deliberately after reviewing upstream changes.
+ARG BLACKBIRD_REF=b45505080ef51bb3ef52dc29879ee6bef31e5b94
+RUN git clone https://github.com/p1ngul1n0/blackbird /opt/blackbird \
+    && git -C /opt/blackbird checkout "${BLACKBIRD_REF}" \
+    && rm -rf /opt/blackbird/.git
 
 # Copy project source
 COPY . .

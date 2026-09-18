@@ -268,28 +268,7 @@ class TestHttpClientHonorsPolicy:
             if k.startswith("EIDOLON_"):
                 monkeypatch.delenv(k, raising=False)
 
-    @pytest.fixture
-    def _record_httpx(self, monkeypatch):
-        """Stub httpx.Client with a recorder so tests can assert constructor args
-        (httpx 0.27 doesn't expose the resolved proxy as a public attribute)."""
-        calls = []
-
-        class _FakeClient:
-            def __init__(self, **kwargs):
-                calls.append(kwargs)
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return None
-
-        import eidolon.sources._http as http_mod
-
-        monkeypatch.setattr(http_mod, "httpx", _Stub(calls))
-        return calls
-
-    def test_client_uses_contextvar_proxy(self, monkeypatch, _record_httpx):
+    def test_client_uses_contextvar_proxy(self, monkeypatch):
         from eidolon.core.egress import bind_policy, unbind_policy
         from eidolon.sources._http import client
 
@@ -298,34 +277,33 @@ class TestHttpClientHonorsPolicy:
             EgressPolicy(proxy="http://socks5-host:1080", user_agent="ua/1")
         )
         try:
-            client()
+            with client() as c:
+                # proxy now lives on the retry transport, not a Client kwarg
+                assert c._transport.proxy == "http://socks5-host:1080"
+                assert c.headers.get("user-agent") == "ua/1"
+                assert c.trust_env is False  # ambient env can't redirect
         finally:
             unbind_policy(token)
-        kwargs = _record_httpx[0]
-        assert kwargs.get("proxy") == "http://socks5-host:1080"
-        assert kwargs.get("headers") == {"User-Agent": "ua/1"}
-        assert kwargs.get("trust_env") is False  # ambient env can't redirect
 
-    def test_client_direct_when_no_active_policy(self, monkeypatch, _record_httpx):
+    def test_client_direct_when_no_active_policy(self, monkeypatch):
         from eidolon.sources._http import client
 
         self._setenv(monkeypatch)
-        client()
-        kwargs = _record_httpx[0]
-        assert kwargs.get("proxy") is None
-        assert kwargs.get("trust_env") is False
+        with client() as c:
+            assert c._transport.proxy is None
+            assert c.trust_env is False
 
-    def test_explicit_policy_overrides_context(self, monkeypatch, _record_httpx):
+    def test_explicit_policy_overrides_context(self, monkeypatch):
         from eidolon.core.egress import bind_policy, unbind_policy
         from eidolon.sources._http import client
 
         self._setenv(monkeypatch)
         token = bind_policy(EgressPolicy(proxy="http://ctx:8080"))
         try:
-            client(policy=EgressPolicy(proxy="http://explicit:8080"))
+            with client(policy=EgressPolicy(proxy="http://explicit:8080")) as c:
+                assert c._transport.proxy == "http://explicit:8080"
         finally:
             unbind_policy(token)
-        assert _record_httpx[0]["proxy"] == "http://explicit:8080"
 
     def test_http_tools_import_the_shared_client_not_bare_httpx(self):
         """Locks the boundary: HTTP tools route through `_http.client`, and the
@@ -361,44 +339,16 @@ class TestHttpClientHonorsPolicy:
                     banned_frag not in src
                 ), f"{name} constructs a bare httpx client ({banned_frag})"
 
-    def test_default_timeout_is_bounded(self, monkeypatch, _record_httpx):
+    def test_default_timeout_is_bounded(self, monkeypatch):
         """RESILIENCE.3 — the shared client default can't hang past a read cap."""
         from eidolon.sources._http import client
 
         self._setenv(monkeypatch)
-        client()
-        kwargs = _record_httpx[0]
-        timeout = kwargs["timeout"]
-        assert timeout.connect < 10
-        assert timeout.read <= 60
-        assert timeout.pool < 20
-
-
-class _Stub:
-    """Minimal httpx-module stand-in exposing Client + AsyncClient (both route
-    to the shared recorder) and Timeout (real) for the _http helper."""
-
-    Timeout = pytest.importorskip("httpx").Timeout
-
-    def __init__(self, calls):
-        self._calls = calls
-
-    def Client(self, **kwargs):
-        return _FakeClient(kwargs, self._calls)
-
-    def AsyncClient(self, **kwargs):
-        return _FakeClient(kwargs, self._calls)
-
-
-class _FakeClient:
-    def __init__(self, kwargs, calls):
-        calls.append(kwargs)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *a):
-        return None
+        with client() as c:
+            timeout = c.timeout
+            assert timeout.connect < 10
+            assert timeout.read <= 60
+            assert timeout.pool < 20
 
 
 class TestCollectBoundaryPacing:

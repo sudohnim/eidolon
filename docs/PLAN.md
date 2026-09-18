@@ -554,3 +554,35 @@ valuable/cleanup ones are tasks; the stale one is recorded so the reasoning surv
   task; the only defensible note is to not overclaim async in interviews (it is threaded,
   not asyncio). If a future need arises, an asyncio collect path is a SCALE-phase concern,
   not a fix.
+
+---
+
+## Phase BLINDSPOTS — EM code-review response (done 2026-09-18)
+
+Eight blindspots from an operator-EM read of the finished codebase. Verified each
+against the tree; implemented or confirmed-already-covered.
+
+- [x] **BLIND.1 Authorization / rules-of-engagement gate.** `core/authorization.py`:
+  operator + reason required at CLI (`--authorized-by`/`--reason`) and MCP
+  (`scan_target`/`scan_batch` refuse empty); append-only `audit.log.jsonl` (target +
+  operator + reason + timestamps, never results/secrets; no-op in TEST_MODE). Stamped into
+  `ScanState.authorization` and the report header. `tests/test_authorization.py`.
+- [x] **BLIND.2 Fixture↔schema drift canary.** `tests/test_fixture_schema.py` validates
+  every registered source's fixture against its `output_schema` (registry-driven). Guards
+  the fixture↔schema half; vendor↔fixture (recorded cassettes) remains a future item.
+- [x] **BLIND.3 HTTP retry/backoff.** `_http` retry transports (sync + async): retry
+  429/5xx with exponential backoff + jitter, honor `Retry-After`, never retry 4xx≠429.
+  `tests/test_http_retry.py`.
+- [~] **BLIND.4 MCP authz.** The BLIND.1 ROE gate covers attribution for local stdio; a
+  bearer-token for a hosted/multi-user tier is deferred (no such transport yet).
+- [x] **BLIND.5 Secret-at-rest invariant.** `tests/test_secret_at_rest.py` — a full scan's
+  `.json`/`.md`/`.pdf` and the stdout print never carry the known plaintext password; only
+  the MCP reveal gate exposes it. Locks the redaction fix as an invariant.
+- [x] **BLIND.6 Supply-chain pin.** `Dockerfile` pins the Blackbird clone to a commit SHA
+  (`ARG BLACKBIRD_REF`) instead of a moving `--depth 1` HEAD; Python deps are pinned by
+  `uv.lock`.
+- [x] **BLIND.7 Input validation.** Already handled — `runner.normalize_*` validate + raise
+  at the one entry (`build_raw_input`) both CLI and MCP use; subprocess calls are list-form
+  (no shell injection). No change needed.
+- [x] **BLIND.8 Observability rollup.** Already present — `RunHealth` (sources by status +
+  wall time) and the per-source evidence appendix (latency/sha256/proxied) in the report.
