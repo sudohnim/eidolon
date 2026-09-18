@@ -9,6 +9,7 @@ from langchain_ollama import ChatOllama
 
 from eidolon import config
 from eidolon.analysis.digest import _build_analysis_digest
+from eidolon.analysis.facts import _claim_is_ungrounded
 from eidolon.analysis.prompts import ANALYSIS_PROMPT
 from eidolon.analysis.risk import (
     _filter_top_risks,
@@ -87,15 +88,18 @@ def _postprocess_analysis(state: ScanState, analysis: dict) -> dict:
         llm_rem = {}
     remediation = _finalize_remediation(state, llm_rem)
 
-    # Identity summary (LLM or deterministic fallback)
+    # Identity summary: prefer the LLM's, but if it asserts a category the scan
+    # never found (fabricated breach/leak/address — an 8B model parrots prompt
+    # examples when breach tools return nothing), fall back to the grounded one.
     identity = analysis.get("identity_summary")
-    if not identity:
+    if not identity or _claim_is_ungrounded(identity, state):
         identity = _state_identity_summary(state)
 
-    # Risk score: max of LLM + deterministic floor
-    llm_score = analysis.get("overall_risk_score", 0)
-    floor = _state_risk_floor(state)
-    risk_score = max(int(llm_score), floor)
+    # Risk score is DETERMINISTIC — grounded in findings, never the LLM's number.
+    # The model writes narrative only; letting it set the score lets a
+    # hallucination drive the headline (dogfood: 85/HIGH on an accounts-only scan
+    # because max(llm=85, floor=0) took the fabricated 85).
+    risk_score = _state_risk_floor(state)
 
     # Risk level
     if risk_score >= 70:

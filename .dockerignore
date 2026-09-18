@@ -28,6 +28,8 @@ output/
 vendor/
 tests/
 *.md
+# …but the package metadata (pyproject readme) needs README.md at build time
+!README.md
 
 # OS
 .DS_Store

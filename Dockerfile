@@ -20,12 +20,12 @@ ENV UV_PYTHON=3.12
 
 WORKDIR /app
 
-# Install Python deps via uv first (layer cache)
-COPY pyproject.toml ./
-RUN uv sync --no-dev
-
-# Install Playwright browser (Chromium already bundled in base image, this registers it)
-RUN uv run playwright install chromium
+# Install Python deps first, from the lockfile, for a reproducible + cacheable
+# layer. --no-install-project syncs only dependencies (the local package itself
+# needs the source + LICENSE, copied later), so this layer is invalidated only
+# when pyproject/uv.lock change.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --no-dev --frozen --no-install-project
 
 # Clone Blackbird (not on PyPI — baked into image).
 # Pinned to a specific commit for reproducible + supply-chain-auditable builds:
@@ -36,8 +36,13 @@ RUN git clone https://github.com/p1ngul1n0/blackbird /opt/blackbird \
     && git -C /opt/blackbird checkout "${BLACKBIRD_REF}" \
     && rm -rf /opt/blackbird/.git
 
-# Copy project source
+# Copy project source, then install the local package itself (LICENSE + source
+# are now present) from the same locked environment.
 COPY . .
+RUN uv sync --no-dev --frozen
+
+# Register the Chromium bundled in the base image (needs the synced project env).
+RUN uv run --no-dev playwright install chromium
 
 # GHunt credentials mount point
 RUN mkdir -p /root/.malfrats/ghunt
@@ -45,6 +50,7 @@ RUN mkdir -p /root/.malfrats/ghunt
 # Patch ghunt source for Google API response changes (container key + data[24] bounds)
 RUN python3 bin/patch-ghunt.py
 
-# Default entrypoint: OSINT scan
-# Override with --entrypoint or `command:` in docker-compose for bin/removal.py
-ENTRYPOINT ["uv", "run", "python", "-m", "eidolon.main"]
+# Default entrypoint: OSINT scan. Run the built venv's python directly rather
+# than `uv run` — the image is already synced, so this avoids a re-sync (and
+# a dev-dep download) on every container start.
+ENTRYPOINT ["/app/.venv/bin/python", "-m", "eidolon.main"]

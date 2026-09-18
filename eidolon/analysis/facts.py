@@ -40,6 +40,67 @@ def _real_breach_names(state: ScanState) -> set[str]:
     return names
 
 
+def _has_category(state: ScanState, category: str) -> bool:
+    """Whether the scan actually produced findings of a claim-category. Used to
+    reject narrative that asserts a category the scan never found (an 8B model
+    parrots prompt examples / hallucinates breaches when breach tools return
+    nothing — see the dogfood finding)."""
+    f = state.findings or []
+    if category == "breach":
+        return any(isinstance(x, (Breach, Credential)) for x in f)
+    if category == "infostealer":
+        return any(isinstance(x, InfostealerLog) for x in f)
+    if category == "address":
+        return _has_address(state)
+    if category == "broker":
+        return any(isinstance(x, BrokerExposure) for x in f)
+    return True  # unknown category: don't second-guess
+
+
+#: claim tokens → the finding-category that must exist for the claim to be grounded
+_CLAIM_CATEGORIES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (
+        (
+            "breach",
+            "leak",
+            "leaked",
+            "hacked",
+            "data dump",
+            "password",
+            "credential",
+            "hashed",
+            "plaintext",
+        ),
+        "breach",
+    ),
+    (
+        ("infostealer", "info-stealer", "malware", "stealer log", "redline", "vidar"),
+        "infostealer",
+    ),
+    (
+        (
+            "home address",
+            "street address",
+            "license plate",
+            "where you live",
+            "front door",
+            "physical address",
+        ),
+        "address",
+    ),
+    (("data broker", "people-finder", "people finder", "broker site"), "broker"),
+)
+
+
+def _claim_is_ungrounded(text: str, state: ScanState) -> bool:
+    """True if the text asserts a finding-category the scan has zero findings for."""
+    low = _stringify(text).lower()
+    for tokens, category in _CLAIM_CATEGORIES:
+        if any(t in low for t in tokens) and not _has_category(state, category):
+            return True
+    return False
+
+
 def _filter_top_risks(risks: list, state: ScanState) -> list[str]:
     """Filter and order the top risks, preferring real breaches + infostealers.
     Drops hallucinated example tokens (parkmobile, luminpdf, pdl breach) unless
@@ -55,7 +116,12 @@ def _filter_top_risks(risks: list, state: ScanState) -> list[str]:
         leaked = any(tok in low for tok in _EXAMPLE_LEAK_TOKENS)
         grounded = any(name in low for name in real_breaches)
         if leaked and not grounded:
-            continue  # drop hallucinated example
+            continue  # drop hallucinated example breach name
+        if not grounded and _claim_is_ungrounded(s, state):
+            # drop a risk asserting a category the scan never found — unless it's
+            # grounded in a real breach (whose data classes may name an address,
+            # license plate, etc. that has no separate finding of its own)
+            continue
         score = 0
         if any(b.lower() in low for b in real_breaches):
             score += 10
@@ -244,6 +310,14 @@ def _state_risk_floor(state: ScanState) -> int:
     # Phone: +5
     if any(isinstance(f, PhoneIntel) for f in findings):
         score += 5
+
+    # Linked accounts: identity-correlation risk. A large cross-platform footprint
+    # is real exposure even with no breach — but capped modest so it can't alone
+    # reach "high" (breach/credential/infostealer are the severe categories).
+    accounts = [f for f in findings if isinstance(f, Account) and f.active]
+    score += min(len(accounts), 20)
+    if any(isinstance(f, GoogleFootprint) for f in findings):
+        score += 2
 
     return min(score, 100)
 
