@@ -25,6 +25,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
+from eidolon.core.authorization import Authorization
 from eidolon.core.runner import build_raw_input
 from eidolon.core.state import ScanState
 
@@ -66,7 +67,9 @@ def parse_target_line(line: str) -> dict[str, str]:
 
 
 def run_batch(
-    targets: list[dict[str, str]], max_concurrency: int = 3
+    targets: list[dict[str, str]],
+    max_concurrency: int = 3,
+    authorization: Authorization | None = None,
 ) -> list[ScanState]:
     """Scan ``targets`` concurrently under a ``max_concurrency`` pool cap.
 
@@ -74,22 +77,39 @@ def run_batch(
     ``city`` / ``state`` / ``zip_code``). Returns one independent ``ScanState``
     per target (own run_id, own report path), in input order. A target that
     fails hard raises; per-source failures stay isolated inside its state.
+
+    ``authorization`` covers the whole batch (one operator attestation); each
+    target's scan is stamped and audit-logged individually, so the audit trail
+    has one entry per identity scanned.
     """
     if not targets:
         return []
     if max_concurrency < 1:
         raise ValueError("max_concurrency must be >= 1")
 
+    from eidolon.core.authorization import record_authorization
     from eidolon.pipeline.graph import build_graph
 
     graph = build_graph()
+    auth = authorization or Authorization.unattested()
+    if not auth.is_attested:
+        logger.warning(
+            "batch running WITHOUT an authorization attestation (recorded as "
+            "'unattested' per target)"
+        )
 
     def _one(target: dict[str, Any]) -> ScanState:
         raw_input = build_raw_input(**{k: v for k, v in target.items() if v})
-        final = graph.invoke(ScanState(raw_input=raw_input))
-        return (
+        final = graph.invoke(ScanState(raw_input=raw_input, authorization=auth))
+        state = (
             final if isinstance(final, ScanState) else ScanState.model_validate(final)
         )
+        record_authorization(
+            auth,
+            scan_id=state.run_id,
+            target=next((c.value for c in state.classifications), ""),
+        )
+        return state
 
     logger.info(
         "batch: %d targets, max_concurrency=%d (pacing shared process-wide)",

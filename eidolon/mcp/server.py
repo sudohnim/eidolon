@@ -19,12 +19,34 @@ from __future__ import annotations
 from mcp.server.fastmcp import FastMCP
 
 from eidolon.core import jobs, repository
+from eidolon.core.authorization import Authorization
 
 mcp = FastMCP("eidolon")
 
 
+def _authorization(authorized_by: str, reason: str) -> Authorization | None:
+    """Build an Authorization from the required MCP args, or None if either is
+    empty (the caller returns _authorization_error)."""
+    try:
+        return Authorization(operator=authorized_by, reason=reason)
+    except ValueError:
+        return None
+
+
+def _authorization_error() -> dict:
+    return {
+        "status": "error",
+        "error": (
+            "authorization required: pass a non-empty authorized_by (operator) "
+            "and reason. A scan targets a real person and is written to the audit log."
+        ),
+    }
+
+
 @mcp.tool()
 def scan_target(
+    authorized_by: str,
+    reason: str,
     email: str | None = None,
     phone: str | None = None,
     name: str | None = None,
@@ -34,12 +56,19 @@ def scan_target(
 ) -> dict:
     """Start a privacy-OSINT scan. Returns immediately with a scan_id.
 
+    ``authorized_by`` (the operator) and ``reason`` (why this target is being
+    scanned) are REQUIRED — a scan targets a real person, so every scan is
+    attributable and written to an append-only audit log. Both must be non-empty.
+
     The scan runs in the background and takes several minutes. Poll
     scan_status(scan_id) until it reports "done", then call get_report(scan_id).
     Only one scan runs at a time. Provide at least one of email / phone / name
     (name works best with a city/state). Leaked credentials are never in the
     headline result — use reveal_credentials(scan_id) for those.
     """
+    auth = _authorization(authorized_by, reason)
+    if auth is None:
+        return _authorization_error()
     return jobs.start_scan(
         email=email,
         phone=phone,
@@ -47,13 +76,22 @@ def scan_target(
         city=city,
         state=state,
         zip_code=zip_code,
+        authorization=auth,
     )
 
 
 @mcp.tool()
-def scan_batch(targets: list[dict[str, str]], max_concurrency: int = 3) -> dict:
+def scan_batch(
+    authorized_by: str,
+    reason: str,
+    targets: list[dict[str, str]],
+    max_concurrency: int = 3,
+) -> dict:
     """Start a batch of privacy-OSINT scans (SCALE.1). Returns immediately with
     a batch_id.
+
+    ``authorized_by`` (operator) and ``reason`` are REQUIRED and cover the whole
+    batch; each target's scan is audit-logged individually.
 
     Each target is a dict with keys email / phone / name / city / state /
     zip_code (at least one of email/phone/name; name needs a city/state/zip).
@@ -61,7 +99,10 @@ def scan_batch(targets: list[dict[str, str]], max_concurrency: int = 3) -> dict:
     reports "done" (aggregate: total / done / report paths per child), then read
     each child with get_report(scan_id).
     """
-    return jobs.start_batch(targets, max_concurrency)
+    auth = _authorization(authorized_by, reason)
+    if auth is None:
+        return _authorization_error()
+    return jobs.start_batch(targets, max_concurrency, authorization=auth)
 
 
 @mcp.tool()

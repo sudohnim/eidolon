@@ -15,6 +15,8 @@ class ReportHeader(BaseModel):
     generated: str = ""
     run_id: str = ""
     target: str = ""
+    authorized_by: str = ""
+    authorization_reason: str = ""
     risk_score: int | None = None
     risk_level: str = ""
     results_json_path: str = ""

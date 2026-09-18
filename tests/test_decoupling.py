@@ -144,7 +144,6 @@ class TestDecouplingProof:
 
 class TestNoRawDictConsumers:
     LIVE_CONSUMERS = [
-        "eidolon/agent/graph.py",
         "eidolon/report/model.py",
         "eidolon/report/markdown.py",
         "eidolon/report/pdf.py",

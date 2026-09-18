@@ -3,6 +3,7 @@ import sys
 
 from eidolon import config
 from eidolon.core import batch, runner
+from eidolon.core.authorization import Authorization
 from eidolon.core.logging import configure_logging, get_logger
 
 configure_logging()
@@ -105,6 +106,18 @@ targets.txt format: one target per line, "key:value" tokens separated by ';'
         default=3,
         help="Concurrent scans when running --targets-file (default: 3)",
     )
+    p.add_argument(
+        "--authorized-by",
+        metavar="OPERATOR",
+        required=True,
+        help="Operator attesting this scan is authorized (required; audit-logged)",
+    )
+    p.add_argument(
+        "--reason",
+        metavar="REASON",
+        required=True,
+        help="Why this target is being scanned (required; audit-logged)",
+    )
     return p
 
 
@@ -149,7 +162,11 @@ def _run_batch(args: argparse.Namespace) -> None:
     logger.info(
         "Batch scan: %d targets, max_concurrency=%d", len(targets), args.max_concurrency
     )
-    states = batch.run_batch(targets, args.max_concurrency)
+    states = batch.run_batch(
+        targets,
+        args.max_concurrency,
+        authorization=Authorization(operator=args.authorized_by, reason=args.reason),
+    )
     for state in states:
         logger.info(
             "  complete scan_id=%s target=%r findings=%d",
@@ -224,6 +241,7 @@ def main():
         city=args.city,
         state=args.state,
         zip_code=args.zip,
+        authorization=Authorization(operator=args.authorized_by, reason=args.reason),
     )
     logger.info("Pipeline complete (scan_id=%s)", result.scan_id)
 

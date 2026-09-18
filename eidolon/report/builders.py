@@ -413,6 +413,10 @@ def build_report_model(state: ScanState, *, results_json_path: str = "") -> Repo
             generated=datetime.now().strftime("%Y-%m-%d"),
             run_id=state.run_id,
             target=primary.value if primary else "unknown",
+            authorized_by=state.authorization.operator if state.authorization else "",
+            authorization_reason=(
+                state.authorization.reason if state.authorization else ""
+            ),
             risk_score=analysis.get("overall_risk_score"),
             risk_level=str(analysis.get("overall_risk_level", "")).upper(),
             results_json_path=results_json_path,

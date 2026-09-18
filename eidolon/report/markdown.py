@@ -34,8 +34,12 @@ def render_markdown(model: ReportModel) -> str:
         f"**Generated:** {_i(h.generated)} (run {_i(h.run_id)})",
         f"**Target:** {_i(h.target)}",
         f"**Risk Score:** {risk}",
-        "",
     ]
+    if h.authorized_by:
+        lines.append(
+            f"**Authorized by:** {_i(h.authorized_by)} — {_i(h.authorization_reason)}"
+        )
+    lines.append("")
 
     # ── What the internet knows ───────────────────────────────────────────
     if model.summary_narrative or model.known_groups:

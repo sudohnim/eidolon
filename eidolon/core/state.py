@@ -3,6 +3,7 @@ from typing import Literal, TypeVar
 
 from pydantic import BaseModel
 
+from eidolon.core.authorization import Authorization
 from eidolon.core.findings import Finding, FindingUnion, Provenance
 
 InputType = Literal["email", "phone", "name", "org"]
@@ -101,6 +102,7 @@ class ScanState(BaseModel):
 
     raw_input: str
     run_id: str = ""
+    authorization: Authorization | None = None
     classifications: list[InputClassification] = []
     location_city: str | None = None
     location_state: str | None = None

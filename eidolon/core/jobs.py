@@ -19,6 +19,7 @@ import threading
 import uuid
 from typing import Callable, Literal, TypedDict, cast
 
+from eidolon.core.authorization import Authorization
 from eidolon.core.runner import run_scan
 
 JobStatus = Literal["running", "done", "error"]
@@ -69,6 +70,7 @@ def start_scan(
     city: str | None = None,
     state: str | None = None,
     zip_code: str | None = None,
+    authorization: Authorization | None = None,
 ) -> dict:
     """Kick off a scan on a background thread. Returns immediately with the
     scan_id, or an error dict if a scan/batch is already running."""
@@ -95,6 +97,7 @@ def start_scan(
                 state=state,
                 zip_code=zip_code,
                 run_id=scan_id,
+                authorization=authorization,
             )
             with _LOCK:
                 _JOBS[scan_id]["status"] = "done"
@@ -112,17 +115,20 @@ def start_batch(
     targets: list[dict[str, str]],
     max_concurrency: int = 3,
     *,
+    authorization: Authorization | None = None,
     _runner: Callable[[list[dict[str, str]], int], list] | None = None,
 ) -> dict:
     """Kick off a batch of targets on a background thread (SCALE.1 + TASKING.2).
 
     Returns immediately with a ``batch_id`` — poll ``get_batch`` / MCP
     ``scan_status`` for aggregate progress. ``_runner`` is a test seam defaulting
-    to ``core.batch.run_batch``.
+    to ``core.batch.run_batch``. ``authorization`` covers the whole batch.
     """
+    from functools import partial
+
     from eidolon.core.batch import run_batch as _default_runner
 
-    run_each = _runner or _default_runner
+    run_each = _runner or partial(_default_runner, authorization=authorization)
     with _LOCK:
         if any(j["status"] == "running" for j in _JOBS.values()) or any(
             b["status"] == "running" for b in _BATCHES.values()

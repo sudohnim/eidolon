@@ -12,11 +12,15 @@ on what a valid email/phone/name is. The argparse layer in ``main.py`` wraps the
 
 from __future__ import annotations
 
+import logging
 import re
 
 from pydantic import BaseModel
 
+from eidolon.core.authorization import Authorization
 from eidolon.core.state import ScanState
+
+logger = logging.getLogger(__name__)
 
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 
@@ -116,16 +120,24 @@ def run_scan(
     state: str | None = None,
     zip_code: str | None = None,
     run_id: str | None = None,
+    authorization: Authorization | None = None,
 ) -> ScanResult:
     """Run a full scan and return its headline result + report paths.
 
     ``run_id`` may be supplied so a caller (e.g. the async MCP job) knows the
     scan_id before the scan finishes; intake reuses it instead of minting one.
 
+    ``authorization`` is the operator's rules-of-engagement attestation. The
+    human-facing surfaces (CLI, MCP) require it; when a library/test caller omits
+    it the scan is recorded as ``unattested`` with a warning rather than running
+    off the books. Either way the attestation is written to the append-only audit
+    log before results are produced.
+
     Blocks until the pipeline finishes (a real scan can take several minutes —
     SpiderFoot alone runs up to ~10). Artifacts are written by report_node; the
     repository locates them by ``scan_id``.
     """
+    from eidolon.core.authorization import record_authorization
     from eidolon.core.repository import report_paths
     from eidolon.pipeline.graph import build_graph
 
@@ -138,10 +150,22 @@ def run_scan(
         zip_code=zip_code,
     )
 
+    auth = authorization or Authorization.unattested()
+    if not auth.is_attested:
+        logger.warning(
+            "scan running WITHOUT an authorization attestation (recorded as "
+            "'unattested'); the CLI/MCP surfaces require one"
+        )
+
     graph = build_graph()
-    final = graph.invoke(ScanState(raw_input=raw_input, run_id=run_id or ""))
+    final = graph.invoke(
+        ScanState(raw_input=raw_input, run_id=run_id or "", authorization=auth)
+    )
     scan_state = (
         final if isinstance(final, ScanState) else ScanState.model_validate(final)
+    )
+    record_authorization(
+        auth, scan_id=scan_state.run_id, target=_identifier(scan_state)
     )
 
     analysis = scan_state.analysis_result or {}

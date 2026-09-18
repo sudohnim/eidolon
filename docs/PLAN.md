@@ -478,3 +478,79 @@ Cross-phase seams:
 - SCALE.1 precedes SCALE.2/.3 and TASKING.2.
 - RESILIENCE, HARDEN, SCALE, TASKING are otherwise independent of REFACTOR but land cleaner
   after it (they target `collect`/registry rather than the god modules).
+
+---
+
+## Phase REVIEW — external code-critique response (assessed 2026-09-17)
+
+Four points from an external reviewer, each verified against the tree before accepting.
+Two are valuable, one is a trivial cleanup, one is stale (already fixed). Only the
+valuable/cleanup ones are tasks; the stale one is recorded so the reasoning survives.
+
+- [ ] **REVIEW.1 [AGENT] No checkpointer — a partial scan cannot resume.** — BLOCKED, do not implement as written.
+  `eidolon/pipeline/graph.py:67` `builder.compile()` takes no checkpointer, and the graph
+  is a straight line (intake → waves → mitre → correlate → analysis → report → END) with no
+  conditional edges. A scan runs ~20 network tools over minutes; if the process dies at
+  wave 2, wave 1's completed work is lost and the next run starts from zero. Fix: compile
+  with a **durable** checkpointer (`langgraph.checkpoint.sqlite.SqliteSaver` persisted under
+  the output dir — NOT `MemorySaver`, which dies with the process and buys nothing for
+  crash-resume), and pass `config={"configurable": {"thread_id": state.run_id}}` from
+  `eidolon/core/runner.py:130` and `eidolon/core/batch.py:83`. Re-invoking with the same
+  `run_id` then resumes from the last completed node. Keep the honest positioning: LangGraph
+  earns its place via the typed state object + this resume seam + room for future branching
+  — do not claim dynamic routing the graph doesn't have. Verify: a test that runs the graph,
+  kills it after wave 1 (monkeypatch a wave-2 node to raise), then re-invokes with the same
+  `run_id` and asserts wave-1 results are present without re-running wave-1 tools (spy that
+  the wave-1 tool is not called the second time).
+  Done when: a same-`run_id` re-invoke resumes from the last completed wave; verify green.
+  BLOCKED (do not implement as written; verified 2026-09-17): durable resume needs a
+  persisted checkpointer (`MemorySaver` dies with the process and buys no crash-resume).
+  The only durable option, `SqliteSaver`, checkpoints the **full `ScanState`** through
+  langgraph's serde — and that serde stores `Credential.password` (a pydantic `SecretStr`)
+  as **plaintext**: `JsonPlusSerializer().dumps_typed(model_with_SecretStr)` yields msgpack
+  bytes containing the cleartext secret. A checkpoint DB would therefore reintroduce the
+  exact plaintext-credential-at-rest leak the redaction fix closed (and worse: the `.json`
+  artifact masks SecretStr via `model_dump`+`default=str`; the checkpoint would not).
+  Smallest-blast-radius says no second plaintext-secret store for an unproven resume need.
+  To unblock, a resume design must keep secrets out of the persisted checkpoint — e.g.
+  resume at the wave level off the idempotent `Finding.dedup_key` / already-written
+  artifacts, or a custom serde that never persists `SecretStr` (and reloads creds from the
+  masked source on resume). Revisit as a SCALE-phase design task, not a drop-in checkpointer.
+
+- [x] **REVIEW.2 [AGENT] Scan index is parsed out of the filename, not the data.**
+  `eidolon/core/repository.py:75` `list_scans()` does `stem.rsplit("_", 2)` to recover
+  `(identifier, date, scan_id)` from `{identifier}_{date}_{scan_id}.json`. It happens to
+  survive underscores in the identifier (date/scan_id never contain `_`) and guards on
+  `len(parts) != 3`, so the reviewer's specific corruption case mostly doesn't fire — but
+  the filename is being used as a schema, and the persisted JSON already holds the
+  authoritative `run_id`, `classifications` (the real, pre-sanitization identifier) and a
+  timestamp. Fix (single source of truth): read each scan's index fields from the JSON
+  **content** and treat the filename as an opaque handle; skip a file whose JSON is missing
+  or unparseable rather than crashing the listing. This is exactly the "messy source data
+  must not break the pipeline" property the product is about. Verify: a scan whose
+  identifier contains underscores lists with its real identifier from JSON; a truncated/
+  corrupt `.json` in the output dir is skipped, not fatal; existing `list_scans` consumers
+  (MCP `list_scans`, `get_report`) unchanged.
+  Done when: the index is derived from JSON content; filename parsing is gone; a corrupt
+  artifact is skipped gracefully.
+
+- [x] **REVIEW.3 [AGENT] Dead duplicate graph module (+ the function-level import smell).**
+  `eidolon/agent/graph.py` has **zero importers** — every consumer (`core/runner.py`,
+  `core/batch.py`, all tests) imports `eidolon.pipeline.graph`. It is a leftover from the
+  REFACTOR module move and carries the one remaining function-level `import logging`
+  (`agent/graph.py:25`) the reviewer flagged. Fix: delete `eidolon/agent/graph.py`; remove
+  `eidolon/agent/` entirely if nothing else lives there (check `agent/__init__.py`).
+  Verify: `grep -rn "agent.graph\|agent import" eidolon tests` returns nothing; suite green.
+  Done when: the dead module is gone; no function-level `import logging` remains in source.
+
+### Assessed, not actioned
+
+- **REVIEW-NA.1 — "still synchronous/serial, requests + time.sleep."** Stale, from older
+  code. Waves run concurrently via `ThreadPoolExecutor` (`eidolon/pipeline/collect.py`
+  `_run_concurrent`, now with a per-tool timeout — RESILIENCE.1). No tool imports
+  `requests`; all 15 HTTP sources go through `_http.client()` (httpx) with explicit
+  connect/read timeouts. The residual `time.sleep` (hibp/commoncrawl/paste/spiderfoot) is
+  poll/pacing that blocks only its worker thread, which is correct under a thread pool. No
+  task; the only defensible note is to not overclaim async in interviews (it is threaded,
+  not asyncio). If a future need arises, an asyncio collect path is a SCALE-phase concern,
+  not a fix.

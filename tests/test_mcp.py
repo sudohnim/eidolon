@@ -69,8 +69,11 @@ def test_tool_schemas_pinned():
     def required(name: str) -> list:
         return _schema(name).get("required") or []
 
-    # single scan: all six kwargs are optional strings
+    # single scan: authorization (operator + reason) is required; the six
+    # target kwargs are optional strings
     single = {
+        "authorized_by": "string",
+        "reason": "string",
         "email": "string",
         "phone": "string",
         "name": "string",
@@ -79,14 +82,16 @@ def test_tool_schemas_pinned():
         "zip_code": "string",
     }
     assert props("scan_target") == single
-    assert required("scan_target") == []
+    assert required("scan_target") == ["authorized_by", "reason"]
 
-    # batch: targets required (array of objects), max_concurrency optional int
+    # batch: authorization + targets required, max_concurrency optional int
     assert props("scan_batch") == {
+        "authorized_by": "string",
+        "reason": "string",
         "targets": "array",
         "max_concurrency": "integer",
     }
-    assert required("scan_batch") == ["targets"]
+    assert required("scan_batch") == ["authorized_by", "reason", "targets"]
 
     # poll/read surfaces: scan_id is required wherever it appears
     for name in ("scan_status", "get_report", "reveal_credentials", "get_evidence"):
@@ -108,7 +113,9 @@ def test_tool_schemas_pinned():
 def test_scan_target_is_async_and_polls_to_done():
     import time
 
-    out = server.scan_target(email="test@example.com")
+    out = server.scan_target(
+        authorized_by="op", reason="test", email="test@example.com"
+    )
     assert out.get("status") == "running"
     scan_id = out["scan_id"]
 
@@ -158,6 +165,8 @@ def test_scan_batch_aggregates_two_targets():
     import time
 
     out = server.scan_batch(
+        authorized_by="op",
+        reason="test",
         targets=[{"email": "test@example.com"}, {"phone": "+14155550100"}],
         max_concurrency=2,
     )
@@ -187,10 +196,12 @@ def test_single_scan_and_batch_share_the_runway():
     versa), or concurrent scans would double the vendor call rate."""
     import time
 
-    single = server.scan_target(email="a@example.com")
-    assert not server.scan_batch(targets=[{"phone": "+14155550100"}]).get(
-        "batch_id"
-    ), "batch must be rejected while a single scan runs"
+    single = server.scan_target(
+        authorized_by="op", reason="test", email="a@example.com"
+    )
+    assert not server.scan_batch(
+        authorized_by="op", reason="test", targets=[{"phone": "+14155550100"}]
+    ).get("batch_id"), "batch must be rejected while a single scan runs"
     for _ in range(200):
         if server.scan_status(single["scan_id"])["status"] in ("done", "error"):
             break

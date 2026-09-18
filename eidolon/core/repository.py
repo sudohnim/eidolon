@@ -11,11 +11,15 @@ swap these implementations and every caller (CLI, MCP) is unchanged.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 
 from pydantic import BaseModel
 
 from eidolon import config
+
+# Identifier preference, mirrors report._build_identifier (email > phone > name > org).
+_IDENTIFIER_PRIORITY = ("email", "phone", "name", "org")
 
 
 class ScanRef(BaseModel):
@@ -64,28 +68,55 @@ def load_scan_state(scan_id: str) -> dict:
     return json.loads(get_report(scan_id, "json"))
 
 
+def _best_identifier(classifications: list) -> str:
+    """The real (pre-sanitization) target identifier from the scan's own data,
+    same email > phone > name > org preference the filename used to encode."""
+    by_type: dict[str, str] = {}
+    for c in classifications:
+        if isinstance(c, dict) and c.get("type") and c.get("value"):
+            by_type.setdefault(str(c["type"]), str(c["value"]))
+    for kind in _IDENTIFIER_PRIORITY:
+        if by_type.get(kind):
+            return by_type[kind]
+    return "unknown"
+
+
 def list_scans() -> list[ScanRef]:
-    """All scans on disk, newest first, parsed from ``{id}_{date}_{run}.json``."""
+    """All scans on disk, newest first.
+
+    The index is derived from each artifact's JSON *content* — the persisted
+    ``run_id`` and ``classifications`` are authoritative — not parsed out of the
+    filename. So an identifier containing underscores lists correctly, and a
+    non-scan or corrupt ``.json`` sitting in the output dir is skipped, never
+    fatal. The filename is treated as an opaque handle (``report_paths`` locates
+    the siblings by ``scan_id``). Ordered by file mtime, newest first.
+    """
     out = _output_dir()
     if not out.exists():
         return []
-    refs: list[ScanRef] = []
+    dated: list[tuple[float, ScanRef]] = []
     for jp in out.glob("*.json"):
-        stem = jp.stem
-        parts = stem.rsplit("_", 2)
-        if len(parts) != 3:
-            continue  # not a scan artifact (e.g. analysis_raw_*.txt siblings)
-        identifier, date, scan_id = parts
+        try:
+            data = json.loads(jp.read_text())
+        except (json.JSONDecodeError, OSError, ValueError):
+            continue  # unreadable / not JSON — not a scan artifact
+        if not isinstance(data, dict) or not data.get("run_id"):
+            continue  # not a scan-state dump
+        scan_id = str(data["run_id"])
+        mtime = jp.stat().st_mtime
         paths = report_paths(scan_id)
-        refs.append(
-            ScanRef(
-                scan_id=scan_id,
-                identifier=identifier,
-                date=date,
-                json_path=paths.get("json"),
-                md_path=paths.get("md"),
-                pdf_path=paths.get("pdf"),
+        dated.append(
+            (
+                mtime,
+                ScanRef(
+                    scan_id=scan_id,
+                    identifier=_best_identifier(data.get("classifications") or []),
+                    date=datetime.fromtimestamp(mtime).strftime("%Y-%m-%d"),
+                    json_path=paths.get("json") or str(jp),
+                    md_path=paths.get("md"),
+                    pdf_path=paths.get("pdf"),
+                ),
             )
         )
-    refs.sort(key=lambda r: (r.date, r.scan_id), reverse=True)
-    return refs
+    dated.sort(key=lambda t: t[0], reverse=True)
+    return [ref for _, ref in dated]

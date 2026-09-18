@@ -44,6 +44,8 @@ def _fixture(tmp_path):
         city=None,
         state=None,
         zip=None,
+        authorized_by="op",
+        reason="test",
     )
     return out, targets, args
 
@@ -82,20 +84,31 @@ def test_targets_file_rejects_single_target_flags(monkeypatch):
     import sys
 
     parser = cli._build_parser()
+    auth = ["--authorized-by", "op", "--reason", "test"]
     args = parser.parse_args(
-        ["--targets-file", "targets.txt", "--max-concurrency", "2"]
+        ["--targets-file", "targets.txt", "--max-concurrency", "2", *auth]
     )
     assert args.targets_file == "targets.txt"
     assert args.max_concurrency == 2
     # normal flags still parse the single-target path
-    args = parser.parse_args(["--email", "a@b.com"])
+    args = parser.parse_args(["--email", "a@b.com", *auth])
     assert args.email == "a@b.com"
     assert args.targets_file is None
     # combining them is a dispatch-time error (the manual guard in main)
     monkeypatch.setattr(
         sys,
         "argv",
-        ["eidolon", "--targets-file", "targets.txt", "--email", "a@b.com"],
+        [
+            "eidolon",
+            "--targets-file",
+            "targets.txt",
+            "--email",
+            "a@b.com",
+            "--authorized-by",
+            "op",
+            "--reason",
+            "test",
+        ],
     )
     with pytest.raises(SystemExit) as exc:
         cli.main()
