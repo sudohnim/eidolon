@@ -15,6 +15,22 @@ from eidolon.sources.base import Tool
 COURTLISTENER_URL = "https://www.courtlistener.com/api/rest/v4/search/"
 
 
+def _name_in_case(name: str, case_name: str) -> bool:
+    """Whether every token of the target name appears in the case name.
+
+    CourtListener's ``q`` is full-text, so a bare name query also returns cases
+    where the name appears only in docket text or as an attorney (e.g. an
+    unrelated securities case). Requiring the name tokens in the *case name*
+    drops those non-party matches. It does NOT confirm identity — a namesake
+    with the same name still passes — so survivors are surfaced as unverified.
+    """
+    tokens = [t for t in name.lower().split() if len(t) > 1]
+    if not tokens:
+        return False
+    low = case_name.lower()
+    return all(t in low for t in tokens)
+
+
 class CourtCase(BaseModel):
     case_name: str
     docket_number: str
@@ -75,27 +91,30 @@ class CourtListener(Tool[CourtListenerInput, CourtListenerOutput]):
         results = resp.json().get("results", [])
 
         cases = [
-            CourtCase(
-                case_name=item.get("caseName") or item.get("case_name") or "",
-                docket_number=(
-                    item.get("docketNumber") or item.get("docket_number") or ""
-                ),
-                court=item.get("court") or item.get("court_id") or "",
-                date_filed=item.get("dateFiled") or item.get("date_filed") or "",
-                date_terminated=(
-                    item.get("dateTerminated") or item.get("date_terminated")
-                ),
-                nature_of_suit=(
-                    item.get("suitNature") or item.get("nature_of_suit") or ""
-                ),
-                cause=item.get("cause") or "",
-                source_url=(
-                    f"https://www.courtlistener.com{item['absolute_url']}"
-                    if item.get("absolute_url")
-                    else ""
-                ),
-            )
+            case
             for item in results
+            if _name_in_case(
+                inp.name,
+                item.get("caseName") or item.get("case_name") or "",
+            )
+            for case in [_to_case(item)]
         ]
-        log.info("ok", cases=len(cases))
+        log.info("ok", cases=len(cases), raw=len(results))
         return CourtListenerOutput(cases=cases, count=len(cases))
+
+
+def _to_case(item: dict) -> CourtCase:
+    return CourtCase(
+        case_name=item.get("caseName") or item.get("case_name") or "",
+        docket_number=item.get("docketNumber") or item.get("docket_number") or "",
+        court=item.get("court") or item.get("court_id") or "",
+        date_filed=item.get("dateFiled") or item.get("date_filed") or "",
+        date_terminated=item.get("dateTerminated") or item.get("date_terminated"),
+        nature_of_suit=item.get("suitNature") or item.get("nature_of_suit") or "",
+        cause=item.get("cause") or "",
+        source_url=(
+            f"https://www.courtlistener.com{item['absolute_url']}"
+            if item.get("absolute_url")
+            else ""
+        ),
+    )
