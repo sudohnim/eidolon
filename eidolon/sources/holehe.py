@@ -5,7 +5,7 @@ import structlog
 import trio
 from pydantic import BaseModel
 
-from eidolon.core.findings import Account, Finding, Severity
+from eidolon.core.findings import Account, Confidence, Finding, Severity
 from eidolon.sources.base import Tool
 
 
@@ -46,6 +46,7 @@ class Holehe(Tool[HoleheInput, HoleheOutput]):
                 dedup_key=f"account:{m.platform.lower()}",
                 title=m.platform,
                 severity=Severity.MEDIUM,
+                confidence=Confidence.CONFIRMED,
                 platform=m.platform,
                 active=True,
             )

@@ -5,7 +5,7 @@ from pathlib import Path
 import structlog
 from pydantic import BaseModel
 
-from eidolon.core.findings import Account, Finding, Severity
+from eidolon.core.findings import Account, Confidence, Finding, Severity
 from eidolon.sources.base import Tool
 
 
@@ -50,6 +50,7 @@ class Maigret(Tool[MaigretInput, MaigretOutput]):
                 dedup_key=f"account:{p.platform.lower()}",
                 title=p.platform,
                 severity=Severity.LOW,
+                confidence=Confidence.UNVERIFIED,
                 platform=p.platform,
                 url=p.url,
                 active=False,

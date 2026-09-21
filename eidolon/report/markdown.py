@@ -33,7 +33,8 @@ def render_markdown(model: ReportModel) -> str:
         "",
         f"**Generated:** {_i(h.generated)} (run {_i(h.run_id)})",
         f"**Target:** {_i(h.target)}",
-        f"**Risk Score:** {risk}",
+        f"**Risk Score:** {risk}"
+        + (f"  _({_i(h.confidence_summary)})_" if h.confidence_summary else ""),
     ]
     if h.authorized_by:
         lines.append(
@@ -182,6 +183,23 @@ def render_markdown(model: ReportModel) -> str:
                 lines.append(f"- ℹ️ {_i(na_item)}")
             lines.append("")
 
+    # ── What changed since last scan ──────────────────────────────────────
+    if model.changes and (
+        model.changes.new_findings or model.changes.resolved_findings
+    ):
+        c = model.changes
+        lines += ["---", "", "## What Changed Since Last Scan", "", _t(c.intro), ""]
+        if c.new_findings:
+            lines += ["### New", ""]
+            for item in c.new_findings:
+                lines.append(f"- {_i(item)}")
+            lines.append("")
+        if c.resolved_findings:
+            lines += ["### No Longer Present", ""]
+            for item in c.resolved_findings:
+                lines.append(f"- {_i(item)}")
+            lines.append("")
+
     # ── Where we looked ───────────────────────────────────────────────────
     if model.coverage and (
         model.coverage.rows or model.coverage.skipped or model.coverage.follow_ups
@@ -251,6 +269,16 @@ def render_markdown(model: ReportModel) -> str:
                 flags.append("proxied" if egrow.proxied else "direct")
                 lines.append(f"- **{_i(egrow.source)}**: {', '.join(flags)}")
             lines.append("")
+        if ap.selectors:
+            lines += ["### Selectors", ""]
+            for sel in ap.selectors:
+                lines.append(
+                    f"- `{_i(sel.value)}` ({_i(sel.origin)}"
+                    + (f" via {_i(sel.derivation)}" if sel.derivation else "")
+                    + f", {_i(sel.confidence)}) — {sel.finding_count} finding(s)"
+                )
+            lines.append("")
+
         if ap.run_health:
             health = ap.run_health
             wall = (

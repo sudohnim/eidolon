@@ -14,6 +14,7 @@ from typing import cast
 
 from eidolon.core.findings import (
     BrokerExposure,
+    Confidence,
     CorporateRecord,
     CourtRecord,
     Credential,
@@ -26,6 +27,7 @@ from eidolon.report.sections import (
     ActionItem,
     Actions,
     BazzellOptOuts,
+    Changes,
     Coverage,
     CoverageRow,
     Dossier,
@@ -40,6 +42,7 @@ from eidolon.report.sections import (
     ReportHeader,
     ReportModel,
     RunHealth,
+    SelectorRow,
     ThreatSection,
     ThreatTechnique,
     TrainingPile,
@@ -241,6 +244,64 @@ def _build_bazzell(findings: list[Finding]) -> BazzellOptOuts | None:
     )
 
 
+def _confidence_summary(findings: list[Finding]) -> str:
+    """Confidence-qualified basis for the score — what an analyst needs to judge
+    how much the number is worth."""
+    counts: dict[str, int] = {}
+    for f in findings:
+        key = getattr(f.confidence, "value", str(f.confidence))
+        counts[key] = counts.get(key, 0) + 1
+    scored = [
+        f"{counts[k]} {k}"
+        for k in ("confirmed", "probable", "possible")
+        if counts.get(k)
+    ]
+    basis = ", ".join(scored) or "no verified findings"
+    excluded = counts.get("unverified", 0)
+    tail = f"; {excluded} unverified excluded" if excluded else ""
+    return f"{basis}{tail}"
+
+
+def _build_selectors(state: ScanState, findings: list[Finding]) -> list[SelectorRow]:
+    """Pivot lineage: every selector searched on, how it was obtained, and what
+    it produced. A derived selector caps the confidence of its findings, so this
+    is where an analyst sees WHY a pile of hits is rated unverified."""
+    counts: dict[str, int] = {}
+    for f in findings:
+        if f.selector:
+            counts[f.selector] = counts.get(f.selector, 0) + 1
+    rows = [
+        SelectorRow(
+            value=sel.value,
+            origin=sel.origin,
+            derivation=sel.derivation,
+            confidence=getattr(sel.confidence, "value", str(sel.confidence)),
+            finding_count=counts.get(sel.value, 0),
+        )
+        for sel in state.selectors
+    ]
+    rows.sort(key=lambda r: (r.origin != "input", -r.finding_count, r.value))
+    return rows
+
+
+def _build_changes(state: ScanState) -> "Changes | None":
+    """Temporal section: what appeared / disappeared since the previous scan."""
+    d = state.diff
+    if not d or not d.compared:
+        return None
+    if not (d.new_findings or d.resolved_findings):
+        return None
+    return Changes(
+        intro=(
+            f"_Compared against the previous scan of this target: "
+            f"{len(d.new_findings)} new, {len(d.resolved_findings)} no longer "
+            f"present, {d.unchanged_count} unchanged._"
+        ),
+        new_findings=list(d.new_findings)[:15],
+        resolved_findings=list(d.resolved_findings)[:15],
+    )
+
+
 def _build_coverage(state: ScanState, findings: list[Finding]) -> Coverage | None:
     """Where we looked: one row per ran source, from the SourceResult envelopes
     plus finding-level detail lines. Skipped sources are listed explicitly so
@@ -260,7 +321,9 @@ def _build_coverage(state: ScanState, findings: list[Finding]) -> Coverage | Non
         if sr.status != "ok" or not sr.summary:
             continue
         row = CoverageRow(label=label, summary=sr.summary)
-        row.subitems = _coverage_subitems(name, findings)
+        row.subitems = _confidence_note(name, findings) + _coverage_subitems(
+            name, findings
+        )
         rows.append(row)
 
     follow_ups = _follow_up_lines(state)
@@ -290,18 +353,32 @@ def _coverage_subitems(name: str, findings: list[Finding]) -> list[str]:
             if isinstance(f, InfostealerLog)
         ]
     if name == "public_records":
-        out = [
+        courts = [c for c in findings if isinstance(c, CourtRecord)]
+        corps = [c for c in findings if isinstance(c, CorporateRecord)]
+        out = []
+        out += [
             f"*{c.case_name}* — {c.court}, filed {c.date_filed} "
             f"[{c.nature_of_suit}]"
-            for c in findings
-            if isinstance(c, CourtRecord)
+            for c in courts
         ][:3]
         out += [
             f"{r.role.title()} at **{r.company_name}** ({r.jurisdiction}, {r.status})"
-            for r in findings
-            if isinstance(r, CorporateRecord)
+            for r in corps
         ][:3]
         return out
+    return []
+
+
+def _confidence_note(name: str, findings: list[Finding]) -> list[str]:
+    """Data-driven caveat: if every finding a source produced is UNVERIFIED, say
+    so once, here — derived from Finding.confidence rather than hardcoded per
+    source, so a new source inherits the honesty automatically."""
+    mine = [f for f in findings if f.provenance.source == name]
+    if mine and all(f.confidence == Confidence.UNVERIFIED for f in mine):
+        return [
+            "_unverified — same name/handle is not the same person; "
+            "excluded from the risk score_"
+        ]
     return []
 
 
@@ -387,7 +464,12 @@ def _build_appendix(state: ScanState) -> ReportAppendix | None:
         error=counts["error"],
         wall_time_ms=wall_ms,
     )
-    return ReportAppendix(evidence=evidence, egress=egress_rows, run_health=health)
+    return ReportAppendix(
+        evidence=evidence,
+        egress=egress_rows,
+        selectors=_build_selectors(state, list(state.findings)),
+        run_health=health,
+    )
 
 
 # ── The model builder ─────────────────────────────────────────────────────────
@@ -413,6 +495,7 @@ def build_report_model(state: ScanState, *, results_json_path: str = "") -> Repo
             generated=datetime.now().strftime("%Y-%m-%d"),
             run_id=state.run_id,
             target=primary.value if primary else "unknown",
+            confidence_summary=_confidence_summary(findings),
             authorized_by=state.authorization.operator if state.authorization else "",
             authorization_reason=(
                 state.authorization.reason if state.authorization else ""
@@ -443,6 +526,7 @@ def build_report_model(state: ScanState, *, results_json_path: str = "") -> Repo
         no_action_items=[
             _rem_item(i) for i in (remediation.get("no_action_available") or [])
         ],
+        changes=_build_changes(state),
         coverage=_build_coverage(state, findings),
         appendix=_build_appendix(state),
     )

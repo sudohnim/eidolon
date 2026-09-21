@@ -23,6 +23,7 @@ _SECTIONS = (
     _sections.training_pile,
     _sections.actions,
     _sections.remediation,
+    _sections.changes,
     _sections.coverage,
     _sections.appendices,
 )

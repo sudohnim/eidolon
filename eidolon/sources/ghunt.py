@@ -7,7 +7,7 @@ from pathlib import Path
 import structlog
 from pydantic import BaseModel
 
-from eidolon.core.findings import Finding, GoogleFootprint, Severity
+from eidolon.core.findings import Confidence, Finding, GoogleFootprint, Severity
 from eidolon.sources.base import Tool
 
 
@@ -51,6 +51,7 @@ class Ghunt(Tool[GHuntInput, GHuntOutput]):
                 dedup_key="google:account",
                 title=f"Google account: {out.name}" if out.name else "Google account",
                 severity=Severity.LOW,
+                confidence=Confidence.CONFIRMED,
                 account_name=out.name,
                 services=list(out.google_services),
                 youtube_channel=out.youtube_channel,

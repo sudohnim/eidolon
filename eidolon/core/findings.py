@@ -44,6 +44,44 @@ class Severity(str, Enum):
     INFO = "info"
 
 
+class Confidence(str, Enum):
+    """How strongly a finding is tied to *this target* — the identity question,
+    kept separate from ``Severity`` (how bad it is if true).
+
+    A source declares this from its own epistemics:
+
+    * ``CONFIRMED``  — the source verified the exact selector (a password-reset
+      probe proving this email is registered; the email present in a breach
+      corpus; a Google account resolved for this address).
+    * ``PROBABLE``   — strong indirect tie, or a POSSIBLE fact corroborated by a
+      second independent source.
+    * ``POSSIBLE``   — plausible but unverified identity (name + location match).
+    * ``UNVERIFIED`` — no identity verification at all (a bare username claim, a
+      name-only court record). Same name is not the same person.
+    """
+
+    CONFIRMED = "confirmed"
+    PROBABLE = "probable"
+    POSSIBLE = "possible"
+    UNVERIFIED = "unverified"
+
+
+#: ordering for upgrades/comparisons (higher wins on merge)
+_CONFIDENCE_RANK: dict[str, int] = {
+    Confidence.UNVERIFIED: 0,
+    Confidence.POSSIBLE: 1,
+    Confidence.PROBABLE: 2,
+    Confidence.CONFIRMED: 3,
+}
+
+
+def confidence_rank(c: "Confidence | str") -> int:
+    """Rank of a confidence level. Accepts the enum or its raw value — note
+    ``str(Confidence.POSSIBLE)`` is ``"Confidence.POSSIBLE"`` on a str-Enum, so
+    the lookup must go through ``.value``, never ``str()``."""
+    return _CONFIDENCE_RANK.get(getattr(c, "value", c), 0)
+
+
 class RemovalHint(BaseModel):
     """Deterministic removal path for a removable finding."""
 
@@ -92,6 +130,20 @@ class Finding(BaseModel):
     dedup_key: str = ""
     title: str = ""
     severity: Severity = Severity.INFO
+    #: how strongly this is tied to THIS target (identity), vs severity (impact).
+    #: Defaults to POSSIBLE: neither claiming verification nor dismissing.
+    confidence: Confidence = Confidence.POSSIBLE
+    #: sources that independently asserted this same fact (corroboration).
+    #: Populated on merge; two independent sources upgrade POSSIBLE -> PROBABLE.
+    sources: list[str] = Field(default_factory=list)
+    #: pivot lineage: the selector value this finding was derived from, e.g. the
+    #: email queried or the username pivoted to. Stamped at the collect boundary.
+    selector: str = ""
+    #: temporal: when this fact was FIRST observed across scans of this target,
+    #: and when it was last seen. Carried forward on re-scan by dedup_key, which
+    #: is exactly what makes run-to-run diffs ("2 new breaches") possible.
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
     provenance: Provenance = Field(default_factory=Provenance)
     removable: bool = False
     removal: RemovalHint | None = None
@@ -153,7 +205,9 @@ class BrokerExposure(Finding):
     opt_out_url: str = ""
     #: what the broker has on the target
     data_points: list[str] = Field(default_factory=list)
-    confidence: str = ""
+    #: the BROKER's own match-strength string ("high"/"medium"/...) — distinct
+    #: from Finding.confidence, which rates the identity tie to this target.
+    match_strength: str = ""
 
 
 class Paste(Finding):
@@ -302,23 +356,51 @@ _SEVERITY_RANK: dict[Severity, int] = {
 }
 
 
+def _corroborate(a: Finding, b: Finding, winner: Finding) -> Finding:
+    """Record that two sources asserted the same fact, and rate the result.
+
+    Corroboration is the analyst's lever: the same fact from two INDEPENDENT
+    sources is stronger than either alone. The merged finding carries the union
+    of asserting sources, and a POSSIBLE fact corroborated independently is
+    upgraded to PROBABLE. Confirmation is never invented — the highest declared
+    confidence of the two always carries (a CONFIRMED source stays CONFIRMED).
+    """
+    srcs: list[str] = []
+    for f in (a, b):
+        for s in [*f.sources, f.provenance.source]:
+            if s and s not in srcs:
+                srcs.append(s)
+    best = (
+        a.confidence
+        if confidence_rank(a.confidence) >= confidence_rank(b.confidence)
+        else b.confidence
+    )
+    if len(srcs) > 1 and confidence_rank(best) == confidence_rank(Confidence.POSSIBLE):
+        best = Confidence.PROBABLE
+    return winner.model_copy(update={"sources": srcs, "confidence": best})
+
+
 def _prefer(a: Finding, b: Finding) -> Finding:
     """Pick the better representation of the same dedup_key.
 
-    Deterministic regardless of arrival order: higher severity wins; on a tie
-    the active one wins (a confirmed account beats an unconfirmed claim); on a
-    tie the alphabetically-lower source wins; full ties keep ``a`` (first seen).
+    Deterministic regardless of arrival order: higher confidence wins first
+    (identity beats impact — a confirmed fact outranks a louder unverified one),
+    then higher severity, then the alphabetically-lower source; full ties keep
+    ``a`` (first seen). The winner carries the corroboration of both.
     """
+    ca, cb = confidence_rank(a.confidence), confidence_rank(b.confidence)
+    if ca != cb:
+        return _corroborate(a, b, a if ca > cb else b)
     ra, rb = _SEVERITY_RANK[a.severity], _SEVERITY_RANK[b.severity]
     if ra != rb:
-        return a if ra < rb else b
+        return _corroborate(a, b, a if ra < rb else b)
     aa, ab = getattr(a, "active", False), getattr(b, "active", False)
     if aa != ab:
-        return a if aa else b
+        return _corroborate(a, b, a if aa else b)
     sa, sb = a.provenance.source, b.provenance.source
     if sa != sb:
-        return a if sa <= sb else b
-    return a
+        return _corroborate(a, b, a if sa <= sb else b)
+    return _corroborate(a, b, a)
 
 
 def merge_findings(existing: list[Finding], incoming: list[Finding]) -> list[Finding]:

@@ -12,6 +12,9 @@ import re
 import structlog
 from pydantic import BaseModel
 
+from eidolon.core.findings import (
+    Confidence,
+)
 from eidolon.core.findings import CorporateRecord as CorporateRecordFinding
 from eidolon.core.findings import (
     CourtRecord,
@@ -98,6 +101,7 @@ class PublicRecords(Tool[PublicRecordsInput, PublicRecordsOutput]):
         record facts, INFO severity (presence, not exposure)."""
         findings: list[Finding] = [
             CourtRecord(
+                confidence=Confidence.UNVERIFIED,
                 dedup_key=f"court:{c.case_name}:{c.docket_number}",
                 title=c.case_name,
                 severity=Severity.INFO,
@@ -111,6 +115,8 @@ class PublicRecords(Tool[PublicRecordsInput, PublicRecordsOutput]):
         ]
         findings += [
             CorporateRecordFinding(
+                # officer search matches on name only — namesake-prone
+                confidence=Confidence.UNVERIFIED,
                 dedup_key=f"corp:{r.company_name}:{r.company_number}",
                 title=r.company_name,
                 severity=Severity.INFO,

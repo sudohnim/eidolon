@@ -20,7 +20,13 @@ from typing import Literal, cast
 import structlog
 from pydantic import BaseModel
 
-from eidolon.core.findings import BrokerExposure, Finding, RemovalHint, Severity
+from eidolon.core.findings import (
+    BrokerExposure,
+    Confidence,
+    Finding,
+    RemovalHint,
+    Severity,
+)
 from eidolon.core.logging import get_logger
 from eidolon.core.state import ToolResult
 from eidolon.sources.base import Tool, run_to_result
@@ -280,7 +286,9 @@ class BrokerScan(Tool[BrokerScanInput, BrokerScanOutput]):
                     domain=p.broker_domain,
                     opt_out_url=p.optout_url,
                     data_points=list(p.data_found),
-                    confidence=p.confidence,
+                    match_strength=p.confidence,
+                    # name + location match: plausible, identity not verified
+                    confidence=Confidence.POSSIBLE,
                 )
             )
         return findings

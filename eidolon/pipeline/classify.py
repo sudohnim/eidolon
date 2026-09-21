@@ -5,7 +5,8 @@ import re
 import uuid
 from typing import Literal
 
-from eidolon.core.state import InputClassification, ScanState
+from eidolon.core.findings import Confidence
+from eidolon.core.state import InputClassification, ScanState, Selector
 
 logger = logging.getLogger(__name__)
 
@@ -69,9 +70,21 @@ def intake_node(state: ScanState) -> ScanState:
     classifications = _classify_input(state.raw_input)
     run_id = state.run_id or uuid.uuid4().hex[:8]
     logger.info("intake: %d classifications, run_id=%s", len(classifications), run_id)
+    # Operator-supplied selectors ARE the target by definition — entity
+    # resolution's anchor. Anything the scan derives later starts unverified.
+    selectors = [
+        Selector(
+            kind=c.type,
+            value=c.value,
+            origin="input",
+            confidence=Confidence.CONFIRMED,
+        )
+        for c in classifications
+    ]
     return state.model_copy(
         update={
             "classifications": classifications,
+            "selectors": selectors,
             "run_id": run_id,
         }
     )

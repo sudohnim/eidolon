@@ -16,7 +16,7 @@ import httpx
 import structlog
 from pydantic import BaseModel
 
-from eidolon.core.findings import Finding, InfostealerLog, Severity
+from eidolon.core.findings import Confidence, Finding, InfostealerLog, Severity
 from eidolon.sources._http import client
 from eidolon.sources.base import Tool
 
@@ -71,6 +71,7 @@ class Stealer(Tool[StealerInput, StealerOutput]):
                     + (f" on {log.computer_name}" if log.computer_name else "")
                 ),
                 severity=Severity.CRITICAL,
+                confidence=Confidence.CONFIRMED,
                 malware_family=log.malware_family,
                 computer_name=log.computer_name,
                 date_compromised=log.date_compromised,

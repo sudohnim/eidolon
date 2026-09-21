@@ -12,9 +12,9 @@ from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError, as_comp
 from typing import Callable, cast
 
 from eidolon import config
-from eidolon.core.findings import merge_findings
+from eidolon.core.findings import Confidence, confidence_rank, merge_findings
 from eidolon.core.registry import REGISTRY, SourceSpec
-from eidolon.core.state import ScanState, SourceResult
+from eidolon.core.state import ScanState, Selector, SourceResult
 from eidolon.sources.base import collect
 from eidolon.sources.shodan import Shodan, ShodanInput
 
@@ -123,6 +123,45 @@ def _node_slots(node: Callable[[ScanState], ScanState], state: ScanState) -> lis
     return []
 
 
+def _apply_selector_confidence(
+    state: ScanState, findings: list
+) -> tuple[list, list[Selector]]:
+    """Cap every finding at the confidence of the selector that produced it, and
+    register any selector the scan derived along the way.
+
+    Entity resolution's load-bearing rule: a finding cannot be more certain than
+    the identifier it was found through. A username guessed from an email
+    local-part is a hypothesis, so hits found through it stay UNVERIFIED no
+    matter how confidently the source reports them — that is what keeps a
+    namesake's accounts out of the target's profile.
+    """
+    known = {sel.value: sel for sel in state.selectors}
+    derived: list[Selector] = []
+    inputs = [sel for sel in state.selectors if sel.origin == "input"]
+    for f in findings:
+        if not f.selector:
+            continue
+        sel = known.get(f.selector)
+        if sel is None:
+            # first sighting of a selector the scan derived rather than was given
+            parent = next(
+                (i for i in inputs if f.selector and f.selector in i.value), None
+            )
+            sel = Selector(
+                kind="username" if parent and "@" in parent.value else "other",
+                value=f.selector,
+                origin="derived",
+                derived_from=parent.value if parent else "",
+                derivation="email local-part" if parent else "discovered",
+                confidence=Confidence.UNVERIFIED,
+            )
+            known[f.selector] = sel
+            derived.append(sel)
+        if confidence_rank(f.confidence) > confidence_rank(sel.confidence):
+            f.confidence = sel.confidence
+    return findings, derived
+
+
 def _run_concurrent(
     base_state: ScanState,
     node_slots: list[tuple[Callable[[ScanState], ScanState], list[str]]],
@@ -196,7 +235,14 @@ def _run_concurrent(
         executor.shutdown(wait=False)
 
     findings = sorted(findings, key=lambda f: (f.kind, f.dedup_key))
-    return base_state.model_copy(update={"findings": findings, "results": results})
+    findings, derived = _apply_selector_confidence(base_state, findings)
+    return base_state.model_copy(
+        update={
+            "findings": findings,
+            "results": results,
+            "selectors": [*base_state.selectors, *derived],
+        }
+    )
 
 
 def wave_scan_node(state: ScanState, wave: int) -> ScanState:

@@ -4,7 +4,7 @@ from typing import Literal, TypeVar
 from pydantic import BaseModel
 
 from eidolon.core.authorization import Authorization
-from eidolon.core.findings import Finding, FindingUnion, Provenance
+from eidolon.core.findings import Confidence, Finding, FindingUnion, Provenance
 
 InputType = Literal["email", "phone", "name", "org"]
 
@@ -92,6 +92,42 @@ class CorrelationRun(BaseModel):
     summary: str = ""
 
 
+class Selector(BaseModel):
+    """One identifier the scan searched on, and how much it belongs to the target.
+
+    Entity resolution starts here: an OPERATOR-SUPPLIED selector is the target by
+    definition (CONFIRMED). A DERIVED one — a username guessed from an email
+    local-part, a name lifted from a third-party profile — is a hypothesis until
+    something verifies it, so it starts UNVERIFIED.
+
+    The load-bearing rule: **a finding is never more confident than the selector
+    that produced it.** That is what stops a guessed handle's 49 hits from being
+    presented as the target's accounts.
+    """
+
+    kind: str = ""  # email / phone / name / username / other
+    value: str = ""
+    origin: Literal["input", "derived"] = "input"
+    #: the selector this one was derived from (empty for inputs)
+    derived_from: str = ""
+    #: how it was derived, e.g. "email local-part"
+    derivation: str = ""
+    confidence: Confidence = Confidence.UNVERIFIED
+
+
+class ScanDiff(BaseModel):
+    """What changed since the previous scan of this target.
+
+    ``compared`` is False on a first-ever scan — distinct from "compared and
+    nothing changed", which a bare empty diff could not express.
+    """
+
+    compared: bool = False
+    new_findings: list[str] = []
+    resolved_findings: list[str] = []
+    unchanged_count: int = 0
+
+
 class ScanState(BaseModel):
     """The scan's state: classifications in, the Finding domain out.
 
@@ -104,12 +140,16 @@ class ScanState(BaseModel):
     run_id: str = ""
     authorization: Authorization | None = None
     classifications: list[InputClassification] = []
+    #: every identifier searched on, input vs derived (entity resolution)
+    selectors: list[Selector] = []
     location_city: str | None = None
     location_state: str | None = None
     location_zip: str | None = None
     correlation_plan: list[dict] = []
     correlation_runs: list[CorrelationRun] = []
     findings: list[FindingUnion] = []
+    #: run-to-run monitoring result (what appeared/disappeared since last scan)
+    diff: ScanDiff | None = None
     results: dict[str, SourceResult] = {}
     mitre_techniques: list[MitreTechnique] = []
     analysis_result: dict | None = None

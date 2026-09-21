@@ -13,11 +13,13 @@ from eidolon.core.findings import (
     Account,
     Breach,
     BrokerExposure,
+    Confidence,
     Credential,
     ExposedHost,
     GoogleFootprint,
     InfostealerLog,
     PhoneIntel,
+    confidence_rank,
 )
 from eidolon.core.state import ScanState
 
@@ -282,7 +284,16 @@ def _state_risk_floor(state: ScanState) -> int:
     """A minimum risk score derived from scan findings, so a failed LLM
     analysis never reports 0/low for a heavily-exposed target."""
     score = 0
-    findings = state.findings or []
+    # Identity gate: a finding rated UNVERIFIED is not tied to this target (a
+    # bare username claim, a name-only court record - same name is not the same
+    # person), so it never moves the number. It still appears in the report as
+    # informational footprint. Everything POSSIBLE and above scores.
+    findings = [
+        f
+        for f in (state.findings or [])
+        if confidence_rank(getattr(f, "confidence", Confidence.POSSIBLE))
+        > confidence_rank(Confidence.UNVERIFIED)
+    ]
 
     # Breaches: +2 each, max 30
     breaches = [f for f in findings if isinstance(f, Breach)]
@@ -311,11 +322,13 @@ def _state_risk_floor(state: ScanState) -> int:
     if any(isinstance(f, PhoneIntel) for f in findings):
         score += 5
 
-    # Linked accounts: identity-correlation risk. A large cross-platform footprint
-    # is real exposure even with no breach — but capped modest so it can't alone
-    # reach "high" (breach/credential/infostealer are the severe categories).
-    accounts = [f for f in findings if isinstance(f, Account) and f.active]
-    score += min(len(accounts), 20)
+    # Accounts tied to this target (UNVERIFIED username claims already filtered
+    # out above): real identity-correlation exposure. +2 each, capped so a
+    # footprint alone can never reach HIGH - breach/credential/infostealer are
+    # the severe categories.
+    accounts = [f for f in findings if isinstance(f, Account)]
+    score += min(len(accounts) * 2, 20)
+
     if any(isinstance(f, GoogleFootprint) for f in findings):
         score += 2
 

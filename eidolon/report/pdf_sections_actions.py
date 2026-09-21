@@ -110,6 +110,24 @@ def remediation(model: ReportModel, L: PdfLayout) -> list:
     return story
 
 
+def changes(model: ReportModel, L: PdfLayout) -> list:
+    """What changed since the previous scan — mirrors the markdown section so
+    the two renderers cannot drift (pinned by the renderer-parity test)."""
+    c = model.changes
+    if not (c and (c.new_findings or c.resolved_findings)):
+        return []
+    story = [L.hr(), L.h2("What Changed Since Last Scan")]
+    if c.intro:
+        story.append(L.body(c.intro))
+    if c.new_findings:
+        story.append(L.h3("New"))
+        story += [L.bullet(item) for item in c.new_findings]
+    if c.resolved_findings:
+        story.append(L.h3("No Longer Present"))
+        story += [L.bullet(item) for item in c.resolved_findings]
+    return story
+
+
 def coverage(model: ReportModel, L: PdfLayout) -> list:
     """Where we looked — per-source rows, skipped list, follow-up pivots."""
     from reportlab.platypus import KeepTogether, Paragraph, Table, TableStyle

@@ -248,6 +248,13 @@ def collect(tool: Tool[TIn, TOut], inp: TIn) -> SourceResult:
     )
     for f in findings:
         f.provenance = provenance.model_copy()
+        # Pivot lineage: the selector this finding came from (the email queried,
+        # the username pivoted to). Answers "how did we get here" per finding.
+        if not f.selector:
+            f.selector = result.input_value
+        # This source asserts the fact; merge unions these for corroboration.
+        if tool.name not in f.sources:
+            f.sources = [*f.sources, tool.name]
 
     return SourceResult(
         name=tool.name,

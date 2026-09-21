@@ -27,7 +27,13 @@ from eidolon.report.pdf_layout import (
     _risk_colour,
     build_layout,
 )
-from eidolon.report.pdf_sections_actions import actions, coverage, footer, remediation
+from eidolon.report.pdf_sections_actions import (
+    actions,
+    changes,
+    coverage,
+    footer,
+    remediation,
+)
 from eidolon.report.sanitize import sanitize_text
 from eidolon.report.sections import ReportModel
 
@@ -46,6 +52,7 @@ __all__ = [
     "training_pile",
     "actions",
     "remediation",
+    "changes",
     "coverage",
     "appendices",
     "footer",

@@ -20,6 +20,27 @@ from eidolon.report import write_report
 logger = logging.getLogger(__name__)
 
 
+def monitoring_node(state: ScanState) -> ScanState:
+    """Diff this scan against the previous scan of the same target (#4).
+
+    Runs immediately before the report so the temporal stamps land in both the
+    rendered report and the persisted state — the next scan reads them back.
+    """
+    from eidolon.core.monitoring import apply_temporal, previous_findings
+
+    identifier = next((c.value for c in state.classifications), "")
+    prior = previous_findings(identifier, exclude_run_id=state.run_id)
+    diff = apply_temporal(prior, list(state.findings))
+    if diff.compared:
+        logger.info(
+            "monitoring: %d new, %d resolved, %d unchanged",
+            len(diff.new_findings),
+            len(diff.resolved_findings),
+            diff.unchanged_count,
+        )
+    return state.model_copy(update={"diff": diff})
+
+
 def report_node(state: ScanState) -> ScanState:
     """Write the final report artifact."""
     path = write_report(state)
@@ -60,8 +81,10 @@ def build_graph() -> CompiledStateGraph:
     builder.add_edge("correlation_execute", "analysis")
 
     # Report
+    builder.add_node("monitoring", monitoring_node)
+    builder.add_edge("analysis", "monitoring")
     builder.add_node("report", report_node)
-    builder.add_edge("analysis", "report")
+    builder.add_edge("monitoring", "report")
     builder.add_edge("report", END)
 
     return builder.compile()

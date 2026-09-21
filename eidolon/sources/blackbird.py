@@ -7,7 +7,7 @@ from pathlib import Path
 import structlog
 from pydantic import BaseModel
 
-from eidolon.core.findings import Account, Finding, Severity
+from eidolon.core.findings import Account, Confidence, Finding, Severity
 from eidolon.sources.base import Tool
 
 
@@ -57,6 +57,7 @@ class Blackbird(Tool[BlackbirdInput, BlackbirdOutput]):
                 dedup_key=f"account:{a.platform.lower()}",
                 title=a.platform,
                 severity=Severity.MEDIUM,
+                confidence=Confidence.CONFIRMED,
                 platform=a.platform,
                 url=a.url,
                 active=True,

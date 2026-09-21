@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_pascal
 
 from eidolon import config
-from eidolon.core.findings import Breach, Finding, Severity
+from eidolon.core.findings import Breach, Confidence, Finding, Severity
 from eidolon.core.state import InputType
 from eidolon.sources._http import client
 from eidolon.sources.base import Tool
@@ -84,6 +84,7 @@ class Hibp(Tool[HibpInput, HibpOutput]):
                     dedup_key=f"breach:{name}",
                     title=b.title or name,
                     severity=severity,
+                    confidence=Confidence.CONFIRMED,
                     breach_date=breach_date,
                     data_classes=list(b.data_classes),
                     is_spam_list=b.is_spam_list,

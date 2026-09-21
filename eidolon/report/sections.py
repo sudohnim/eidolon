@@ -15,6 +15,9 @@ class ReportHeader(BaseModel):
     generated: str = ""
     run_id: str = ""
     target: str = ""
+    #: confidence-qualified basis for the score, e.g.
+    #: "24 confirmed, 1 possible; 55 unverified excluded"
+    confidence_summary: str = ""
     authorized_by: str = ""
     authorization_reason: str = ""
     risk_score: int | None = None
@@ -144,6 +147,14 @@ class BazzellOptOuts(BaseModel):
     manual: list[OptOutItem] = Field(default_factory=list)
 
 
+class Changes(BaseModel):
+    """What changed since the previous scan — the temporal view (#4)."""
+
+    intro: str = ""
+    new_findings: list[str] = Field(default_factory=list)
+    resolved_findings: list[str] = Field(default_factory=list)
+
+
 class CoverageRow(BaseModel):
     label: str = ""
     summary: str = ""
@@ -183,6 +194,19 @@ class EgressRow(BaseModel):
     proxied: bool = False
 
 
+class SelectorRow(BaseModel):
+    """One selector and what it produced — the pivot lineage an analyst reads to
+    answer "how did we get here"."""
+
+    value: str = ""
+    origin: str = "input"  # "input" or "derived"
+    #: how a derived selector was obtained, e.g. "email local-part"
+    derivation: str = ""
+    #: how strongly this selector belongs to the target — caps its findings
+    confidence: str = ""
+    finding_count: int = 0
+
+
 class RunHealth(BaseModel):
     """At-a-glance run rollup: sources by status + total wall time."""
 
@@ -195,6 +219,7 @@ class RunHealth(BaseModel):
 class ReportAppendix(BaseModel):
     evidence: list[EvidenceRow] = Field(default_factory=list)
     egress: list[EgressRow] = Field(default_factory=list)
+    selectors: list[SelectorRow] = Field(default_factory=list)
     run_health: RunHealth | None = None
 
 
@@ -210,6 +235,7 @@ class ReportModel(BaseModel):
     remediation_groups: list[RemediationGroup] = Field(default_factory=list)
     bazzell: BazzellOptOuts | None = None
     no_action_items: list[str] = Field(default_factory=list)
+    changes: Changes | None = None
     coverage: Coverage | None = None
     appendix: ReportAppendix | None = None
 
@@ -237,6 +263,10 @@ class ReportModel(BaseModel):
                 titles.append("No Action Available")
         if self.remediation_groups or self.bazzell or self.no_action_items:
             titles.append("What To Do")
+        if self.changes and (
+            self.changes.new_findings or self.changes.resolved_findings
+        ):
+            titles.append("What Changed Since Last Scan")
         if self.coverage and (
             self.coverage.rows or self.coverage.skipped or self.coverage.follow_ups
         ):
