@@ -1,0 +1,27 @@
+{
+  "breach_count": 2,
+  "breaches": [
+    {
+      "name": "LinkedIn",
+      "year": "2016",
+      "data_classes": ["Email addresses", "Passwords"],
+      "records": 164611595,
+      "password_risk": "plaintext",
+      "domain": "linkedin.com",
+      "industry": "Information Technology"
+    },
+    {
+      "name": "Dropbox",
+      "year": "2012",
+      "data_classes": ["Email addresses", "Passwords"],
+      "records": 68648009,
+      "password_risk": "hashed",
+      "domain": "dropbox.com",
+      "industry": "Information Technology"
+    }
+  ],
+  "risk_score": 80,
+  "risk_label": "High",
+  "plaintext_password_count": 1,
+  "hashed_password_count": 1
+}

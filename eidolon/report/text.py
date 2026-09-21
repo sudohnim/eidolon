@@ -92,6 +92,7 @@ _KNOWN_GROUPS: list[tuple[str, str]] = [
 # Source name → coverage row label (identical in every renderer).
 _SOURCE_LABELS: dict[str, str] = {
     "hibp": "HIBP",
+    "xposedornot": "XposedOrNot",
     "dehashed": "DeHashed",
     "whoxy": "Whoxy",
     "paste": "Paste sites",
@@ -112,6 +113,7 @@ _SOURCE_LABELS: dict[str, str] = {
 #: canonical row order (the legacy markdown order); unknown sources append.
 _SOURCE_ORDER: list[str] = [
     "hibp",
+    "xposedornot",
     "dehashed",
     "whoxy",
     "paste",

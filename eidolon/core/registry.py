@@ -42,6 +42,7 @@ from eidolon.sources.shodan import Shodan
 from eidolon.sources.spiderfoot import Spiderfoot, SpiderfootInput
 from eidolon.sources.stealer import Stealer, StealerInput
 from eidolon.sources.whoxy import Whoxy, WhoxyInput
+from eidolon.sources.xposedornot import XposedOrNot, XposedOrNotInput
 from eidolon.utils import clean_url
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,11 @@ def _classification(state: "ScanState", kind: str) -> "InputClassification | Non
 def _email(state: "ScanState") -> str | None:
     c = _classification(state, "email")
     return c.value if c else None
+
+
+def xposedornot_input(state: "ScanState") -> XposedOrNotInput | None:
+    email = _email(state)
+    return XposedOrNotInput(email=email) if email else None
 
 
 def hibp_input(state: "ScanState") -> HibpInput | None:
@@ -267,6 +273,7 @@ def commoncrawl_input(state: "ScanState") -> CommonCrawlInput | None:
 #: that derive their input from wave-1 findings.
 REGISTRY: tuple[SourceSpec, ...] = (
     SourceSpec("hibp", Hibp, 1, ("email", "phone"), hibp_input),
+    SourceSpec("xposedornot", XposedOrNot, 1, ("email",), xposedornot_input),
     SourceSpec("dehashed", Dehashed, 1, ("email",), email_input),
     SourceSpec("whoxy", Whoxy, 1, ("email",), whoxy_input),
     SourceSpec("paste", Paste, 1, ("email",), paste_input),
