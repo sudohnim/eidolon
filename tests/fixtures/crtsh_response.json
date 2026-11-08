@@ -1,0 +1,30 @@
+{
+  "domain": "example.com",
+  "cert_count": 3,
+  "names": [
+    {
+      "name": "*.example.com",
+      "wildcard": true,
+      "cert_count": 1,
+      "first_seen": "2024-01-10T00:00:00",
+      "last_expiry": "2025-01-10T23:59:59",
+      "issuers": ["C=US, O=Let's Encrypt, CN=R3"]
+    },
+    {
+      "name": "example.com",
+      "wildcard": false,
+      "cert_count": 2,
+      "first_seen": "2023-03-01T00:00:00",
+      "last_expiry": "2026-12-01T23:59:59",
+      "issuers": ["C=US, O=Let's Encrypt, CN=R3"]
+    },
+    {
+      "name": "staging.example.com",
+      "wildcard": false,
+      "cert_count": 1,
+      "first_seen": "2023-06-15T00:00:00",
+      "last_expiry": "2023-09-13T23:59:59",
+      "issuers": ["C=US, O=Let's Encrypt, CN=R3"]
+    }
+  ]
+}

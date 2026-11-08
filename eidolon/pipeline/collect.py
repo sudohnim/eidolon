@@ -31,19 +31,28 @@ def _apply_source(state: ScanState, sr: SourceResult) -> dict:
     return {"findings": findings, "results": results}
 
 
+def _shodan_ips(state: ScanState) -> list[str]:
+    """IPs for Shodan: the ones DNS resolved for the target's hosts."""
+    ips = [
+        i["ip"]
+        for f in state.generic_findings("dns_host")
+        for i in f.payload.get("ips", [])
+    ]
+    return list(dict.fromkeys(ips))[:20]
+
+
 def _shodan_slots(state: ScanState) -> list[str]:
     """The per-IP result slots the shodan override writes."""
-    return [f"shodan_{c.value}" for c in state.classifications if c.type == "ip"]
+    return [f"shodan_{ip}" for ip in _shodan_ips(state)]
 
 
 def shodan_node(state: ScanState) -> ScanState:
     """Shodan is a node override: it aggregates multiple IP collects."""
     from eidolon.core.findings import ExposedHost
 
-    classifications = state.classifications or []
-    ips = [c.value for c in classifications if c.type == "ip"]
+    ips = _shodan_ips(state)
     if not ips:
-        logger.info("shodan: no IPs in classifications")
+        logger.info("shodan: no IPs resolved")
         return state
 
     all_findings: list = []

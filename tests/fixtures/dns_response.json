@@ -1,0 +1,28 @@
+{
+  "domain": "example.com",
+  "apex": {
+    "mx": ["10 mail.example.com"],
+    "txt": ["v=spf1 include:_spf.google.com ~all", "google-site-verification=abc123"],
+    "ns": ["a.iana-servers.net", "b.iana-servers.net"]
+  },
+  "hosts": [
+    {
+      "host": "example.com",
+      "cname": "",
+      "ips": [
+        {
+          "ip": "93.184.215.14",
+          "asn": "15133",
+          "prefix": "93.184.215.0/24",
+          "country": "US",
+          "as_name": "EDGECAST - MCI Communications Services, Inc. d/b/a Verizon Business, US"
+        }
+      ]
+    },
+    {
+      "host": "staging.example.com",
+      "cname": "example-staging.herokuapp.com",
+      "ips": []
+    }
+  ]
+}

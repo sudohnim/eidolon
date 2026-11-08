@@ -41,6 +41,15 @@ def normalize_phone(value: str) -> str:
     return digits
 
 
+def normalize_domain(value: str) -> str:
+    from eidolon.pipeline.classify import DOMAIN_RE
+
+    v = (value or "").strip().lower().rstrip(".")
+    if not DOMAIN_RE.match(v):
+        raise ValueError(f"invalid domain: {value!r}")
+    return v
+
+
 def normalize_name(value: str) -> str:
     v = " ".join((value or "").strip().split())
     v = re.sub(r"[^\w\s\-']", "", v)
@@ -91,6 +100,7 @@ def build_raw_input(
     city: str | None = None,
     state: str | None = None,
     zip_code: str | None = None,
+    domain: str | None = None,
 ) -> str:
     """Normalize inputs into the ``type:value`` line format intake_node parses."""
     parts: list[str] = []
@@ -106,8 +116,10 @@ def build_raw_input(
         parts.append(f"state:{normalize_state(state)}")
     if zip_code:
         parts.append(f"zip:{normalize_zip(zip_code)}")
-    if not any([email, phone, name]):
-        raise ValueError("at least one of email, phone, or name is required")
+    if domain:
+        parts.append(f"domain:{normalize_domain(domain)}")
+    if not any([email, phone, name, domain]):
+        raise ValueError("at least one of email, phone, name or domain is required")
     return "\n".join(parts)
 
 
@@ -119,6 +131,7 @@ def run_scan(
     city: str | None = None,
     state: str | None = None,
     zip_code: str | None = None,
+    domain: str | None = None,
     run_id: str | None = None,
     authorization: Authorization | None = None,
 ) -> ScanResult:
@@ -148,6 +161,7 @@ def run_scan(
         city=city,
         state=state,
         zip_code=zip_code,
+        domain=domain,
     )
 
     auth = authorization or Authorization.unattested()

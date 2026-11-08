@@ -30,6 +30,7 @@ _validate_name = _argtype(runner.normalize_name)
 _validate_state = _argtype(runner.normalize_state)
 _validate_city = _argtype(runner.normalize_city)
 _validate_zip = _argtype(runner.normalize_zip)
+_validate_domain = _argtype(runner.normalize_domain)
 
 
 def _validate_concurrency(value: str) -> int:
@@ -75,6 +76,12 @@ targets.txt format: one target per line, "key:value" tokens separated by ';'
     )
     p.add_argument(
         "--name", metavar="FULLNAME", type=_validate_name, help="Target full name"
+    )
+    p.add_argument(
+        "--domain",
+        metavar="DOMAIN",
+        type=_validate_domain,
+        help="Target domain, e.g. example.com (CT log + DNS recon)",
     )
     p.add_argument(
         "--city",
@@ -190,20 +197,24 @@ def main():
             args.city,
             args.state,
             args.zip,
+            args.domain,
         ]
         if any(input_flags):
             parser.print_help()
             print(
                 "\nError: --targets-file cannot be combined with "
-                "single-target flags (--email/--phone/--name/--city/--state/--zip)."
+                "single-target flags (--email/--phone/--name/--domain/"
+                "--city/--state/--zip)."
             )
             sys.exit(1)
         _run_batch(args)
         return
 
-    if not any([args.email, args.phone, args.name]):
+    if not any([args.email, args.phone, args.name, args.domain]):
         parser.print_help()
-        print("\nError: at least one of --email, --phone, or --name is required.")
+        print(
+            "\nError: at least one of --email, --phone, --name or --domain is required."
+        )
         sys.exit(1)
 
     # --name requires at least one location flag for broker searches to be useful
@@ -230,6 +241,7 @@ def main():
         ("city", args.city),
         ("state", args.state),
         ("zip", args.zip),
+        ("domain", args.domain),
     ):
         if value:
             logger.info("  %-5s: %s", label, value)
@@ -241,6 +253,7 @@ def main():
         city=args.city,
         state=args.state,
         zip_code=args.zip,
+        domain=args.domain,
         authorization=Authorization(operator=args.authorized_by, reason=args.reason),
     )
     logger.info("Pipeline complete (scan_id=%s)", result.scan_id)

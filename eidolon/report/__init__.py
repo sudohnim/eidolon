@@ -42,8 +42,8 @@ __all__ = [
 
 
 def _build_identifier(state: PipelineState) -> str:
-    """Pick the best identifier for the filename (email > phone > name > org)."""
-    priority = ["email", "phone", "name", "org"]
+    """Pick the best identifier for the filename, in priority order."""
+    priority = ["email", "phone", "name", "domain", "org"]
     classifications_by_type = {c.type: c for c in state.classifications}
     for kind in priority:
         if kind in classifications_by_type:

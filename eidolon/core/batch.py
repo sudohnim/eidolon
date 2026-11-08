@@ -32,7 +32,7 @@ from eidolon.core.state import ScanState
 logger = logging.getLogger(__name__)
 
 #: target dict keys run_batch understands (mirrors run_scan kwargs)
-TARGET_KEYS = ("email", "phone", "name", "city", "state", "zip_code", "zip")
+TARGET_KEYS = ("email", "phone", "name", "domain", "city", "state", "zip_code", "zip")
 
 
 def parse_target_line(line: str) -> dict[str, str]:

@@ -3,15 +3,15 @@
 import logging
 import re
 import uuid
-from typing import Literal
 
 from eidolon.core.findings import Confidence
-from eidolon.core.state import InputClassification, ScanState, Selector
+from eidolon.core.state import InputClassification, InputType, ScanState, Selector
 
 logger = logging.getLogger(__name__)
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PHONE_RE = re.compile(r"^\+?1?\d{10}$")
+DOMAIN_RE = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
 
 
 def _classify_input(raw: str) -> list[InputClassification]:
@@ -22,12 +22,13 @@ def _classify_input(raw: str) -> list[InputClassification]:
         if not line:
             continue
         # Structured format: "type:value"
-        if line.startswith(("email:", "phone:", "name:")):
+        if line.startswith(("email:", "phone:", "name:", "domain:")):
             kind, _, value = line.partition(":")
-            type_map: dict[str, Literal["email", "phone", "name", "org"]] = {
+            type_map: dict[str, InputType] = {
                 "email": "email",
                 "phone": "phone",
                 "name": "name",
+                "domain": "domain",
             }
             out.append(
                 InputClassification(
@@ -58,6 +59,8 @@ def _classify_bare(raw: str) -> InputClassification | None:
         return InputClassification(type="phone", value=f"+1{digits}", raw=raw)
     if PHONE_RE.match(raw):
         return InputClassification(type="phone", value=raw, raw=raw)
+    if DOMAIN_RE.match(raw.lower()):
+        return InputClassification(type="domain", value=raw.lower(), raw=raw)
     words = raw.split()
     if 2 <= len(words) <= 4 and all(w[0].isupper() for w in words if w):
         return InputClassification(type="name", value=raw, raw=raw)

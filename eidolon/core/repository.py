@@ -18,8 +18,8 @@ from pydantic import BaseModel
 
 from eidolon import config
 
-# Identifier preference, mirrors report._build_identifier (email > phone > name > org).
-_IDENTIFIER_PRIORITY = ("email", "phone", "name", "org")
+# Identifier preference, mirrors report._build_identifier.
+_IDENTIFIER_PRIORITY = ("email", "phone", "name", "domain", "org")
 
 
 class ScanRef(BaseModel):

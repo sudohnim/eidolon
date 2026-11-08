@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from eidolon.core.authorization import Authorization
 from eidolon.core.findings import Confidence, Finding, FindingUnion, Provenance
 
-InputType = Literal["email", "phone", "name", "org"]
+InputType = Literal["email", "phone", "name", "org", "domain"]
 
 F = TypeVar("F", bound=Finding)
 
@@ -26,7 +26,7 @@ class ToolResult(BaseModel):
 
 
 class InputClassification(BaseModel):
-    type: Literal["email", "phone", "name", "org"]
+    type: InputType
     value: str
     raw: str
 

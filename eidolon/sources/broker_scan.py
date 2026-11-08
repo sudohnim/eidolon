@@ -28,7 +28,7 @@ from eidolon.core.findings import (
     Severity,
 )
 from eidolon.core.logging import get_logger
-from eidolon.core.state import ToolResult
+from eidolon.core.state import InputType, ToolResult
 from eidolon.sources.base import Tool, run_to_result
 from eidolon.utils import load_data
 
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 class BrokerScanInput(BaseModel):
-    input_type: Literal["email", "phone", "name", "org"]
+    input_type: InputType
     value: str
     first_name: str | None = None
     last_name: str | None = None
@@ -211,9 +211,7 @@ class BrokerScan(Tool[BrokerScanInput, BrokerScanOutput]):
         log = get_logger(f"eidolon.sources.{self.name}").bind(tool=self.name)
         return self._run(inp, log)
 
-    def _input_type(
-        self, inp: BrokerScanInput
-    ) -> Literal["email", "phone", "name", "org"]:
+    def _input_type(self, inp: BrokerScanInput) -> InputType:
         return inp.input_type
 
     def _input_value(self, inp: BrokerScanInput) -> str:
