@@ -108,6 +108,8 @@ _SOURCE_LABELS: dict[str, str] = {
     "phone_lookup": "Phone",
     "public_records": "Public Records",
     "commoncrawl": "Common Crawl",
+    "crtsh": "crt.sh (CT logs)",
+    "dns": "DNS",
 }
 
 #: canonical row order (the legacy markdown order); unknown sources append.
@@ -129,6 +131,8 @@ _SOURCE_ORDER: list[str] = [
     "phone_lookup",
     "public_records",
     "commoncrawl",
+    "crtsh",
+    "dns",
 ]
 
 _MECH_LABELS = {

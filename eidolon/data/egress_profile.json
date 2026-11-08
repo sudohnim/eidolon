@@ -16,5 +16,7 @@
   "phone_lookup": {"logs_api_key": true, "logs_source_ip": true, "third_party": true},
   "public_records": {"logs_api_key": true, "logs_source_ip": true, "third_party": true},
   "commoncrawl": {"logs_api_key": false, "logs_source_ip": true, "third_party": true},
+  "crtsh": {"logs_api_key": false, "logs_source_ip": true, "third_party": true},
+  "dns": {"logs_api_key": false, "logs_source_ip": true, "third_party": true},
   "ai_audit": {"logs_api_key": false, "logs_source_ip": false, "third_party": false}
 }

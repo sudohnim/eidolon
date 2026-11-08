@@ -26,6 +26,7 @@ dependencies = [
     "playwright>=1.44.0",
     "structlog>=24.1.0",
     "mcp>=1.2.0",
+    "dnspython>=2.6.0",
 ]
 
 [project.optional-dependencies]

@@ -30,7 +30,9 @@ from eidolon.sources.base import Tool
 from eidolon.sources.blackbird import Blackbird, BlackbirdInput
 from eidolon.sources.broker_scan import BrokerScan, BrokerScanInput
 from eidolon.sources.commoncrawl import CommonCrawl, CommonCrawlInput
+from eidolon.sources.crtsh import Crtsh, CrtshInput
 from eidolon.sources.dehashed import Dehashed, DehashedInput
+from eidolon.sources.dns_records import DnsInput, DnsRecords
 from eidolon.sources.ghunt import Ghunt, GHuntInput
 from eidolon.sources.hibp import Hibp, HibpInput
 from eidolon.sources.holehe import Holehe, HoleheInput
@@ -77,6 +79,19 @@ def _email(state: "ScanState") -> str | None:
 def xposedornot_input(state: "ScanState") -> XposedOrNotInput | None:
     email = _email(state)
     return XposedOrNotInput(email=email) if email else None
+
+
+def crtsh_input(state: "ScanState") -> CrtshInput | None:
+    c = _classification(state, "domain")
+    return CrtshInput(domain=c.value) if c else None
+
+
+def dns_input(state: "ScanState") -> DnsInput | None:
+    c = _classification(state, "domain")
+    if not c:
+        return None
+    hosts = [f.title for f in state.generic_findings("subdomain")]
+    return DnsInput(domain=c.value, hosts=hosts)
 
 
 def hibp_input(state: "ScanState") -> HibpInput | None:
@@ -274,6 +289,7 @@ def commoncrawl_input(state: "ScanState") -> CommonCrawlInput | None:
 REGISTRY: tuple[SourceSpec, ...] = (
     SourceSpec("hibp", Hibp, 1, ("email", "phone"), hibp_input),
     SourceSpec("xposedornot", XposedOrNot, 1, ("email",), xposedornot_input),
+    SourceSpec("crtsh", Crtsh, 1, ("domain",), crtsh_input),
     SourceSpec("dehashed", Dehashed, 1, ("email",), email_input),
     SourceSpec("whoxy", Whoxy, 1, ("email",), whoxy_input),
     SourceSpec("paste", Paste, 1, ("email",), paste_input),
@@ -294,7 +310,9 @@ REGISTRY: tuple[SourceSpec, ...] = (
         ("email", "phone", "name", "org"),
         broker_scan_input,
     ),
-    SourceSpec("shodan", Shodan, 2, ("email", "phone", "name", "org"), None),
+    SourceSpec("dns", DnsRecords, 2, ("domain",), dns_input),
+    # wave 3: needs the IPs that wave-2 DNS resolved
+    SourceSpec("shodan", Shodan, 3, ("email", "phone", "name", "org"), None),
     SourceSpec(
         "public_records",
         PublicRecords,
